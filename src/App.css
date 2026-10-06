@@ -153,3 +153,4 @@ h2 { font-size: 17px; margin: 0 0 var(--s1); color: var(--accent); }
   .hint { max-width: none; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+.restored { display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap; margin: 0; }

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
 import { t as tr } from './i18n.js'
 import { parseRequirements } from './logic/requirements.js'
@@ -6,6 +6,7 @@ import { allStatuses, BLOCKING, duplicateIds, matchBlocker } from './logic/statu
 import { inspectPdf, MAX_FILES, MAX_TOTAL_BYTES } from './logic/files.js'
 import { buildPackage } from './logic/pack.js'
 import { suggestMatches } from './logic/automatch.js'
+import { loadProject, saveProject, clearProject } from './logic/saved.js'
 
 const SAMPLE_DOCS = [
   '01_financial_proposal.pdf', '02_technical_proposal.pdf', '03_tin_certificate.pdf', '04_vat_certificate.pdf',
@@ -36,7 +37,32 @@ export default function App() {
   const [withIndex, setWithIndex] = useState(true)
   const [gen, setGen] = useState({ state: 'idle' })
   const [dragOver, setDragOver] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+  const [restored, setRestored] = useState(false)
   const jsonInput = useRef(null)
+
+  // Bonus: restore saved work once, then auto-save every change (IndexedDB, this browser only).
+  useEffect(() => {
+    loadProject().then((p) => {
+      if (p?.req) {
+        setReq(p.req)
+        setFiles(p.files || [])
+        setMatches(p.matches || {})
+        setExpiry(p.expiry || {})
+        setWithIndex(p.withIndex ?? true)
+        nextId = 1 + Math.max(0, ...(p.files || []).map((f) => +f.id.slice(1) || 0))
+        setRestored(true)
+      }
+      setLoaded(true)
+    })
+  }, [])
+  useEffect(() => {
+    if (loaded) saveProject({ req, files, matches, expiry, withIndex })
+  }, [loaded, req, files, matches, expiry, withIndex])
+  function startOver() {
+    clearProject()
+    setReq(null); setReqErrors([]); setFiles([]); setMatches({}); setExpiry({}); setNotice(null); setRestored(false); resetGen()
+  }
   const pdfInput = useRef(null)
 
   const toggleLang = () => {
@@ -194,6 +220,12 @@ export default function App() {
       </header>
 
       <main>
+        {restored && (
+          <div className="alert ok restored" role="status">
+            {t('restored')}{' '}
+            <button className="btn small" onClick={startOver}>{t('startOver')}</button>
+          </div>
+        )}
         {/* Step 1 */}
         <section className="card" aria-labelledby="s1">
           <h2 id="s1">{t('step1')}</h2>
@@ -201,6 +233,7 @@ export default function App() {
           <div className="actions">
             <button className="btn primary" onClick={() => jsonInput.current.click()}>{t('openJson')}</button>
             <button className="btn" onClick={loadSample}>{t('loadSample')}</button>
+            {(req || files.length > 0) && <button className="btn ghost" onClick={startOver}>{t('startOver')}</button>}
             <input ref={jsonInput} type="file" accept=".json,application/json" hidden onChange={onJsonFile} />
           </div>
           {reqErrors.length > 0 && (

@@ -76,7 +76,9 @@ const en = {
   genError: 'Could not make the PDF: {msg}',
   exportCsv: 'Export checklist (CSV)',
   loadFirst: 'Load the tender requirements first (Step 1).',
-  footerNote: 'All files stay in your browser. Nothing is uploaded to any server.',
+  restored: 'Your previous work was restored from this browser.',
+  startOver: 'Start over',
+  footerNote: 'All files stay in your browser (saved automatically on this device). Nothing is uploaded to any server.',
 }
 
 const bn = {
@@ -156,7 +158,9 @@ const bn = {
   genError: 'PDF তৈরি করা যায়নি: {msg}',
   exportCsv: 'চেকলিস্ট রপ্তানি (CSV)',
   loadFirst: 'আগে টেন্ডারের চাহিদা লোড করুন (ধাপ ১)।',
-  footerNote: 'সব ফাইল আপনার ব্রাউজারেই থাকে। কোনো সার্ভারে আপলোড হয় না।',
+  restored: 'এই ব্রাউজারে সংরক্ষিত আগের কাজ ফিরিয়ে আনা হয়েছে।',
+  startOver: 'নতুন করে শুরু করুন',
+  footerNote: 'সব ফাইল আপনার ব্রাউজারেই থাকে (এই ডিভাইসে স্বয়ংক্রিয়ভাবে সংরক্ষিত)। কোনো সার্ভারে আপলোড হয় না।',
 }
 
 export const dict = { en, bn }

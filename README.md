@@ -60,6 +60,7 @@ Deployed to GitHub Pages by `.github/workflows/deploy.yml` on every push to `mai
 - Auto-match: suggests matches from file names; ambiguous cases (e.g. two trade licences) are left for the user
 - Export checklist as CSV (document, file name, pages, expiry date, status) — UTF-8 with BOM so Excel shows Bangla
 - Bad files handled safely: damaged or password-protected PDFs show a clear message
+- Save and reopen work: the whole project (requirements, files, matches, dates) is auto-saved in the browser (IndexedDB) and restored after reload; "Start over" clears it
 
 ## Sample pack result
 
@@ -76,7 +77,7 @@ Screenshots: [`screenshots/`](screenshots/).
 
 - The cover and index pages are in English only (as Section 6.1 requires); Bangla text is not drawn in the PDF.
 - Rotated pages are redrawn upright; on those pages links/form fields from the original are not kept.
-- Work is not saved between browser sessions (files must be uploaded again after reload).
+- Saved work lives only in this browser (IndexedDB); it is not shared between devices.
 - No PDF preview thumbnails.
 
 ## AI tools used

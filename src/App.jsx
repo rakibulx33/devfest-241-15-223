@@ -32,7 +32,7 @@ export default function App() {
   const [matches, setMatches] = useState({})
   const [expiry, setExpiry] = useState({})
   const [reading, setReading] = useState(false)
-  const [notice, setNotice] = useState('')
+  const [notice, setNotice] = useState(null)
   const [withIndex, setWithIndex] = useState(true)
   const [gen, setGen] = useState({ state: 'idle' })
   const [dragOver, setDragOver] = useState(false)
@@ -123,13 +123,13 @@ export default function App() {
     const next = suggestMatches(req.requirements, files, matches)
     const n = Object.keys(next).length - Object.keys(matches).length
     setMatches(next)
-    setNotice(n > 0 ? t('autoMatchDone', { n }) : t('autoMatchNone'))
+    setNotice(n > 0 ? { key: 'autoMatchDone', n } : { key: 'autoMatchNone' })
   }
   function clearMatches() {
     resetGen()
     setMatches({})
     setExpiry({})
-    setNotice('')
+    setNotice(null)
   }
 
   const dups = useMemo(() => duplicateIds(files), [files])
@@ -286,7 +286,7 @@ export default function App() {
               <div className="actions">
                 <button className="btn" onClick={autoMatch} disabled={!files.some((f) => !f.error)}>{t('autoMatch')}</button>
                 <button className="btn ghost" onClick={clearMatches} disabled={!Object.keys(matches).length}>{t('clearMatches')}</button>
-                {notice && <span className="muted" role="status">{notice}</span>}
+                {notice && <span className="muted" role="status">{t(notice.key, notice)}</span>}
               </div>
               <table className="reqs">
                 <thead>

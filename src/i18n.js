@@ -101,7 +101,7 @@ const bn = {
   dropHere: 'অথবা এখানে ফাইল ছাড়ুন',
   noFiles: 'এখনও কোনো ফাইল আপলোড হয়নি।',
   pages: '{n} পৃষ্ঠা',
-  page1: '১ পৃষ্ঠা',
+  page1: '1 পৃষ্ঠা',
   remove: 'মুছুন',
   removeLabel: '{name} ফাইলটি মুছুন',
   dupBadge: 'ডুপ্লিকেট',

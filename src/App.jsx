@@ -5,7 +5,7 @@ import { t as tr } from './i18n.js'
 import { parseRequirements } from './logic/requirements.js'
 import { allStatuses, BLOCKING, duplicateIds, matchBlocker } from './logic/status.js'
 import { inspectPdf, MAX_FILES, MAX_TOTAL_BYTES } from './logic/files.js'
-import { buildPackage, parsePageList } from './logic/pack.js'
+import { buildPackage, needsImage, parsePageList } from './logic/pack.js'
 import { suggestMatches } from './logic/automatch.js'
 import { loadProject, saveProject, clearProject } from './logic/saved.js'
 
@@ -103,6 +103,10 @@ export default function App() {
     setSwap(true)
     setTimeout(() => setSwap(false), 350)
   }
+  useEffect(() => {
+    document.documentElement.lang = lang
+    document.title = tr(lang, 'appTitle')
+  }, [lang])
   const title = (r) => (lang === 'bn' ? r.title_bn : r.title_en)
   const resetGen = () => setGen({ state: 'idle' })
 
@@ -137,19 +141,28 @@ export default function App() {
     setReading(true)
     resetGen()
     const added = []
-    let count = files.filter((f) => !f.error).length
-    let total = files.filter((f) => !f.error).reduce((a, f) => a + f.size, 0)
-    for (const file of list) {
-      const base = { id: 'f' + nextId++, name: file.name, size: file.size }
-      if (count + 1 > MAX_FILES) { added.push({ ...base, error: 'too_many' }); continue }
-      if (total + file.size > MAX_TOTAL_BYTES) { added.push({ ...base, error: 'too_big' }); continue }
-      const bytes = new Uint8Array(await file.arrayBuffer())
-      const info = await inspectPdf(bytes)
-      if (!info.error) { count++; total += file.size }
-      added.push({ ...base, ...info, bytes: info.error ? null : bytes })
+    try {
+      let count = files.filter((f) => !f.error).length
+      let total = files.filter((f) => !f.error).reduce((a, f) => a + f.size, 0)
+      for (const file of list) {
+        const base = { id: 'f' + nextId++, name: file.name, size: file.size }
+        if (count + 1 > MAX_FILES) { added.push({ ...base, error: 'too_many' }); continue }
+        if (total + file.size > MAX_TOTAL_BYTES) { added.push({ ...base, error: 'too_big' }); continue }
+        let bytes = null
+        let info
+        try {
+          bytes = new Uint8Array(await file.arrayBuffer())
+          info = await inspectPdf(bytes)
+        } catch {
+          info = { error: 'damaged' } // unreadable file (e.g. removed from disk while uploading)
+        }
+        if (!info.error) { count++; total += file.size }
+        added.push({ ...base, ...info, bytes: info.error ? null : bytes })
+      }
+    } finally {
+      setFiles((prev) => [...prev, ...added])
+      setReading(false)
     }
-    setFiles((prev) => [...prev, ...added])
-    setReading(false)
   }
   async function loadSampleDocs() {
     const list = await Promise.all(
@@ -245,8 +258,12 @@ export default function App() {
           bnPng: withIndex ? await bnPng(r.req.title_bn) : null,
         })
       }
+      const textImages = {}
+      for (const key of ['title', 'procuring_entity', 'bidder']) {
+        if (needsImage(req.tender[key])) textImages[key] = await bnPng(req.tender[key])
+      }
       const sealOpt = seal?.bytes ? { bytes: seal.bytes, pages: sealPageList, position: sealPos } : null
-      const bytes = await buildPackage({ tender: req.tender, docs, generatedDate: today(), withIndex, seal: sealOpt })
+      const bytes = await buildPackage({ tender: req.tender, docs, generatedDate: today(), withIndex, seal: sealOpt, textImages })
       const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
       setGen({ state: 'done', url, pages: totalPages })
       const a = document.createElement('a')
@@ -259,7 +276,12 @@ export default function App() {
   }
 
   function exportCsv() {
-    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
+    // Cells starting with = + - @ would run as formulas in Excel: prefix a quote (CSV injection guard).
+    const esc = (v) => {
+      let text = String(v ?? '')
+      if (/^[=+\-@\t\r]/.test(text)) text = "'" + text
+      return `"${text.replace(/"/g, '""')}"`
+    }
     const head = [t('colOrder'), t('colDoc'), t('colFile'), t('csvPages'), t('colExpiry'), t('colStatus')]
     const lines = rows.map(({ req: r, status }) => {
       const f = fileById[matches[r.id]]
@@ -480,6 +502,7 @@ export default function App() {
                                     <span>{t('colExpiry')}</span>
                                     <input
                                       type="date"
+                                      name={'expiry-' + r.id}
                                       value={expiry[r.id] || ''}
                                       onChange={(e) => { resetGen(); setExpiry((x) => ({ ...x, [r.id]: e.target.value })) }}
                                     />
@@ -506,7 +529,7 @@ export default function App() {
           {/* Step 4: options */}
           <Step n={4} id="s4" done={steps[4]} title={t('step4')} help={t('step4Help')} last t={t}>
             <label className="switch">
-              <input type="checkbox" role="switch" checked={withIndex} onChange={(e) => { resetGen(); setWithIndex(e.target.checked) }} />
+              <input type="checkbox" role="switch" name="withIndex" checked={withIndex} onChange={(e) => { resetGen(); setWithIndex(e.target.checked) }} />
               <span className="track" aria-hidden="true"><span className="thumb" /></span>
               <span>{t('withIndex')}</span>
             </label>
@@ -542,6 +565,7 @@ export default function App() {
                       {sealMode === 'custom' && (
                         <input
                           className="pages-in"
+                          name="sealPages"
                           type="text"
                           inputMode="numeric"
                           placeholder="3, 5-7"
@@ -555,7 +579,7 @@ export default function App() {
                     </div>
                     <label className="pos">
                       <strong>{t('sealPos')}</strong>
-                      <select value={sealPos} onChange={(e) => { resetGen(); setSealPos(e.target.value) }}>
+                      <select name="sealPos" value={sealPos} onChange={(e) => { resetGen(); setSealPos(e.target.value) }}>
                         <option value="right">{t('sealRight')}</option>
                         <option value="left">{t('sealLeft')}</option>
                       </select>

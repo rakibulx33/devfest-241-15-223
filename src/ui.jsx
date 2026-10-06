@@ -153,9 +153,10 @@ export function Dossier({ t, req, rows, blocking, pagesNow, titleOf, gen, canGen
             <>
               <div className="f-id">{req.tender.tender_id}</div>
               <div className="f-title">{req.tender.title}</div>
-              <div className="f-pages" aria-live="polite">
-                <span className="num" key={pagesNow}>{pages}</span>
-                <span>{t('pagesWord')}</span>
+              <div className="f-pages">
+                <span className="num" key={pagesNow} aria-hidden="true">{pages}</span>
+                <span aria-hidden="true">{t('pagesWord')}</span>
+                <span className="sr" role="status">{t('pages', { n: pagesNow })}</span>
               </div>
               <span key={state + blocking.length} className={'corner ' + (state === 'ready' ? 'c-ready' : 'c-fix')}>
                 <Icon name={state === 'ready' ? 'check' : 'alert'} size={14} />

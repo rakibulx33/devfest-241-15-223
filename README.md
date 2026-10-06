@@ -42,7 +42,7 @@ Bottle-green and paper palette, Public Sans + Noto Sans Bengali, numbered step r
 
 ## Main features (all done)
 
-- 4.1 Load + validate `requirements.json`, show tender details, requirements sorted by order
+- 4.1 Load + validate `requirements.json` (clear English/Bangla error list; a document with only one title falls back to it in the other language), show tender details, requirements sorted by order
 - 4.2 Multi-file upload with page counts; non-PDF rejection (checked by file content, not only name); remove file; 30 files / 50 MB limit
 - 4.3 One-to-one matching, change or undo any time
 - 4.4 Expiry date entry for `has_expiry` documents
@@ -76,12 +76,21 @@ declaration; file numbers `01_financial` / `02_technical` are in the opposite or
 Optional documents R06 and R07 are not provided.
 
 Output: [`output/T-2026-0417_Package.pdf`](output/T-2026-0417_Package.pdf) — cover + index + 15 document pages = 17 pages.
-Screenshots: [`screenshots/`](screenshots/).
+Screenshots in [`screenshots/`](screenshots/): `07` document statuses (English), `09` document statuses (Bangla), `05` ready state, `08` after generating, `06` phone layout (Bangla).
+
+## Security and privacy
+
+- Everything runs in the browser; no file or data is sent to any server. Saved work stays in this browser's IndexedDB.
+- A strict Content-Security-Policy meta tag allows only own scripts, Google Fonts (CSS + font files) and `blob:`/`data:` images; no inline scripts, no `eval`, no third-party scripts.
+- Uploaded files are checked by content (`%PDF-` header), never executed or injected into the page; all text is rendered through React (escaped).
+- CSV export neutralises spreadsheet formula injection (cells starting with `=`, `+`, `-`, `@` get a leading quote).
+- No keys, tokens or secrets in the code or history. `npm audit`: 0 known vulnerabilities.
 
 ## Known problems / limits
 
-
-- The cover page is English only (Section 6.1). Bangla titles on the index are images, so they are not selectable text.
+- The cover page is English (Section 6.1). If a tender title, entity or bidder contains Bangla, that line is drawn as an image, so it is not selectable text; the same applies to the Bangla titles on the index page.
+- Fonts (Public Sans, Noto Sans Bengali) load from Google Fonts; offline, the app falls back to system fonts and still works.
+- A PDF that opens but has broken page content is not detected; only unreadable, empty or password-protected PDFs are rejected.
 - Rotated pages are redrawn upright; on those pages links/form fields from the original are not kept.
 - Saved work lives only in this browser (IndexedDB); it is not shared between devices.
 - No PDF preview thumbnails.

@@ -10,8 +10,12 @@ const STRIP = 28 // height of footer strip in points
 const INK = rgb(0.1, 0.12, 0.16)
 const MUTED = rgb(0.35, 0.38, 0.42)
 
-// Standard PDF fonts only cover Latin-1; replace anything else so drawing never throws.
-export const latin = (s) => String(s ?? '').replace(/[^\x20-\x7E -ÿ]/g, '?')
+// Standard PDF fonts cover WinAnsi (Latin-1 + curly quotes, dashes, bullet, euro, ...). Anything else
+// (e.g. Bangla) cannot be drawn as text: needsImage() tells the caller to supply a rendered image instead,
+// and latin() replaces leftovers with '?' so drawing never throws.
+const OUTSIDE = '[^\\x20-\\x7E\\u00A0-\\u00FF\\u2018\\u2019\\u201C\\u201D\\u2013\\u2014\\u2026\\u2022\\u20AC\\u2122]'
+export const needsImage = (s) => new RegExp(OUTSIDE).test(String(s ?? ''))
+export const latin = (s) => String(s ?? '').replace(new RegExp(OUTSIDE, 'g'), '?')
 
 export const footerText = (tenderId, n, total) => `${latin(tenderId)} | Page ${n} of ${total}`
 
@@ -64,10 +68,11 @@ async function addFooterToDocPage(out, page, font, text) {
  * @param docs    [{ order, title_en, fileName, bytes }] already sorted by order
  * @param generatedDate 'YYYY-MM-DD'
  * @param withIndex add index page after the cover (bonus)
+ * @param textImages optional { title, procuring_entity, bidder }: { bytes: PNG, w, h } for cover fields that contain non-Latin text
  * @param seal    { bytes: PNG, pages: [package page numbers], position: 'right'|'left' } (bonus)
  * @returns Uint8Array
  */
-export async function buildPackage({ tender, docs, generatedDate, withIndex = false, seal = null }) {
+export async function buildPackage({ tender, docs, generatedDate, withIndex = false, seal = null, textImages = null }) {
   const out = await PDFDocument.create()
   const font = await out.embedFont(StandardFonts.Helvetica)
   const bold = await out.embedFont(StandardFonts.HelveticaBold)
@@ -90,16 +95,23 @@ export async function buildPackage({ tender, docs, generatedDate, withIndex = fa
   cover.drawLine({ start: { x: L, y }, end: { x: W - L, y }, thickness: 1.5, color: INK })
   y -= 30
   const rows = [
-    ['Tender ID', tender.tender_id],
-    ['Tender Title', tender.title],
-    ['Procuring Entity', tender.procuring_entity],
-    ['Bidder', tender.bidder],
-    ['Submission Deadline', tender.submission_deadline],
-    ['Package Generated', generatedDate],
+    ['Tender ID', tender.tender_id, null],
+    ['Tender Title', tender.title, 'title'],
+    ['Procuring Entity', tender.procuring_entity, 'procuring_entity'],
+    ['Bidder', tender.bidder, 'bidder'],
+    ['Submission Deadline', tender.submission_deadline, null],
+    ['Package Generated', generatedDate, null],
   ]
-  for (const [k, v] of rows) {
+  for (const [k, v, key] of rows) {
     cover.drawText(k, { x: L, y, size: 11, font: bold, color: MUTED })
-    cover.drawText(fit(font, v, 12, W - L - 190), { x: L + 140, y, size: 12, font, color: INK })
+    const pic = key && needsImage(v) ? textImages?.[key] : null
+    if (pic) {
+      const img = await out.embedPng(pic.bytes)
+      const k2 = Math.min(1, (W - L - 190) / pic.w)
+      cover.drawImage(img, { x: L + 140, y: y - 4 * k2, width: pic.w * k2, height: pic.h * k2 })
+    } else {
+      cover.drawText(fit(font, v, 12, W - L - 190), { x: L + 140, y, size: 12, font, color: INK })
+    }
     y -= 22
   }
   y -= 16

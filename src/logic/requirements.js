@@ -9,11 +9,14 @@ export function isIsoDate(s) {
   return !isNaN(d) && d.toISOString().slice(0, 10) === s
 }
 
+const hasText = (v) => typeof v === 'string' && v.trim() !== ''
+const orderOf = (v) => (typeof v === 'number' ? v : hasText(v) ? Number(v) : NaN) // "3" is accepted as 3
+
 export function parseRequirements(text) {
   let data
   try {
     data = JSON.parse(text)
-  } catch (e) {
+  } catch {
     return { errors: [{ code: 'bad_json' }] }
   }
   const errors = []
@@ -36,15 +39,22 @@ export function parseRequirements(text) {
       if (typeof r.id !== 'string' || !r.id) errors.push({ code: 'missing', field: `${at}.id` })
       else if (ids.has(r.id)) errors.push({ code: 'dup_id', field: `${at}.id`, id: r.id })
       else ids.add(r.id)
-      if (typeof r.order !== 'number' || !isFinite(r.order)) errors.push({ code: 'not_number', field: `${at}.order` })
-      if (typeof r.title_en !== 'string' || !r.title_en.trim()) errors.push({ code: 'missing', field: `${at}.title_en` })
-      if (typeof r.title_bn !== 'string' || !r.title_bn.trim()) errors.push({ code: 'missing', field: `${at}.title_bn` })
+      if (!isFinite(orderOf(r.order))) errors.push({ code: 'not_number', field: `${at}.order` })
+      // One title is enough: the other language falls back to it.
+      if (!hasText(r.title_en) && !hasText(r.title_bn)) errors.push({ code: 'missing', field: `${at}.title_en` })
       if (typeof r.mandatory !== 'boolean') errors.push({ code: 'not_bool', field: `${at}.mandatory` })
       if (typeof r.has_expiry !== 'boolean') errors.push({ code: 'not_bool', field: `${at}.has_expiry` })
     })
   }
   if (errors.length) return { errors }
   // Sort by order; ties broken by id so the result is deterministic.
-  const requirements = [...reqs].sort((a, b) => a.order - b.order || a.id.localeCompare(b.id))
+  const requirements = reqs
+    .map((r) => ({
+      ...r,
+      order: orderOf(r.order),
+      title_en: hasText(r.title_en) ? r.title_en : r.title_bn,
+      title_bn: hasText(r.title_bn) ? r.title_bn : r.title_en,
+    }))
+    .sort((a, b) => a.order - b.order || a.id.localeCompare(b.id))
   return { tender: { ...tender }, requirements }
 }

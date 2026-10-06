@@ -162,3 +162,30 @@ test('password-protected (encrypted) PDF is rejected, not crashed', async () => 
   const enc = Buffer.concat([src.subarray(0, j), Buffer.from(' /Encrypt << /Filter /Standard /V 2 /R 3 /O <00> /U <00> /P -4 >> '), src.subarray(j)])
   assert.equal((await inspectPdf(new Uint8Array(enc))).error, 'encrypted')
 })
+
+test('curly quotes and dashes survive on the cover; non-Latin text is flagged for image rendering', async () => {
+  const { needsImage, latin } = await import('../src/logic/pack.js')
+  assert.equal(latin('B’s “Ltd.” – 2026…'), 'B’s “Ltd.” – 2026…')
+  assert.equal(needsImage('B’s “Ltd.” – 2026'), false)
+  assert.equal(needsImage('মেঘনা Ltd.'), true)
+  assert.equal(latin('মেঘনা'), '?????')
+  const docs = [{ title_en: 'Company’s – “doc”', bytes: read('documents/03_tin_certificate.pdf') }]
+  const img = { bytes: read('documents/company_logo.png'), w: 40, h: 18 }
+  const out = await PDFDocument.load(await buildPackage({
+    tender: { ...sample.tender, bidder: 'মেঘনা টেক', title: 'It’s a title' },
+    docs, generatedDate: '2026-10-06', textImages: { bidder: img },
+  }))
+  assert.equal(out.getPageCount(), 2)
+})
+
+test('requirements: one title is enough, numeric-string order accepted', () => {
+  const t = { tender_id: 'X', title: 'T', procuring_entity: 'P', bidder: 'B', submission_deadline: DL }
+  const base = { id: 'A', order: '2', mandatory: true, has_expiry: false, title_en: '  ', title_bn: 'শুধু বাংলা' }
+  const res = parseRequirements(JSON.stringify({ tender: t, requirements: [base, { ...base, id: 'B', order: 1, title_en: 'English only', title_bn: '' }] }))
+  assert.ok(!res.errors)
+  assert.deepEqual(res.requirements.map((r) => [r.id, r.order]), [['B', 1], ['A', 2]])
+  assert.equal(res.requirements[1].title_en, 'শুধু বাংলা')
+  assert.equal(res.requirements[0].title_bn, 'English only')
+  const none = parseRequirements(JSON.stringify({ tender: t, requirements: [{ ...base, title_bn: '' }] }))
+  assert.equal(none.errors[0].code, 'missing')
+})

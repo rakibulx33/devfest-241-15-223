@@ -169,3 +169,11 @@ test('AI answers: valid newer licence beats expired one, dates applied, no doubl
   assert.equal(matches.R05, 'c')
   assert.equal(Object.values(matches).filter((v) => v === 'd').length, 0)
 })
+
+test('password-protected (encrypted) PDF is rejected, not crashed', async () => {
+  const src = Buffer.from(read('documents/03_tin_certificate.pdf'))
+  const at = src.lastIndexOf('trailer')
+  const j = src.indexOf('<<', at) + 2
+  const enc = Buffer.concat([src.subarray(0, j), Buffer.from(' /Encrypt << /Filter /Standard /V 2 /R 3 /O <00> /U <00> /P -4 >> '), src.subarray(j)])
+  assert.equal((await inspectPdf(new Uint8Array(enc))).error, 'encrypted')
+})

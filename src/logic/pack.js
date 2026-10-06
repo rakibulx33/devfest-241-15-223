@@ -65,7 +65,7 @@ async function addFooterToDocPage(out, page, font, text) {
 
 /**
  * @param tender  tender object from requirements.json
- * @param docs    [{ order, title_en, fileName, bytes }] already sorted by order
+ * @param docs    [{ title_en, bytes, bnPng? }] already sorted by requirement order (bnPng: Bangla title image for the index)
  * @param generatedDate 'YYYY-MM-DD'
  * @param withIndex add index page after the cover (bonus)
  * @param textImages optional { title, procuring_entity, bidder }: { bytes: PNG, w, h } for cover fields that contain non-Latin text

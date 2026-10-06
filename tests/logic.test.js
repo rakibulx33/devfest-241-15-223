@@ -2,7 +2,8 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { PDFDocument, degrees } from 'pdf-lib'
 import { parseRequirements, isIsoDate } from '../src/logic/requirements.js'
 import { statusOf, BLOCKING, duplicateIds, matchBlocker } from '../src/logic/status.js'
@@ -94,10 +95,10 @@ test('package: cover + docs in order, footer on every page, sample = 16 pages', 
   assert.ok(out.getPage(1).getHeight() > 841.89)
   let text = ''
   try {
-    const tmp = new URL('../node_modules/.pkg-test.pdf', import.meta.url)
-    const { writeFileSync } = await import('node:fs')
+    const tmp = join(tmpdir(), `pkg-test-${process.pid}.pdf`)
+    const { writeFileSync, rmSync } = await import('node:fs')
     writeFileSync(tmp, bytes)
-    text = execFileSync('pdftotext', ['-layout', fileURLToPath(tmp), '-'], { encoding: 'utf8' })
+    try { text = execFileSync('pdftotext', ['-layout', tmp, '-'], { encoding: 'utf8' }) } finally { rmSync(tmp, { force: true }) }
   } catch { /* pdftotext not installed (CI): skip text checks */ }
   if (text) {
     const pages = text.split('\f')

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
-import { BrandMark, Dossier, Icon, LangSwitch, Step, StatusStamp, reducedMotion, useRipple } from './ui.jsx'
+import { BrandMark, Dossier, Icon, LangSwitch, Step, StatusStamp } from './ui.jsx'
+import { reducedMotion, useRipple } from './motion.js'
 import { t as tr } from './i18n.js'
 import { parseRequirements } from './logic/requirements.js'
 import { allStatuses, BLOCKING, duplicateIds, matchBlocker } from './logic/status.js'

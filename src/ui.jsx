@@ -1,6 +1,6 @@
 // Small presentational pieces (icons, stepper, status stamp, language switch, package panel).
 // No business logic here: App.jsx owns the state and passes plain values in.
-import { useEffect, useRef, useState } from 'react'
+import { useCountUp } from './motion.js'
 
 // ---------- Icons (Lucide-style strokes, one consistent set) ----------
 const PATHS = {
@@ -28,7 +28,7 @@ export function Icon({ name, size = 18, className = '' }) {
   )
 }
 
-export const STATUS_ICON = { ok: 'check', missing: 'x', expiry_needed: 'alert', expired: 'clock', not_provided: 'minus' }
+const STATUS_ICON = { ok: 'check', missing: 'x', expiry_needed: 'alert', expired: 'clock', not_provided: 'minus' }
 
 export function BrandMark() {
   return (
@@ -39,50 +39,6 @@ export function BrandMark() {
       <path className="mark-check" pathLength="1" d="M12.5 18l2.5 2.5 4.5-5" stroke="#0b5d46" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
-}
-
-// ---------- Hooks ----------
-export const reducedMotion = () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-
-// Animates a number towards `target` (skipped when the user prefers reduced motion).
-export function useCountUp(target, ms = 450) {
-  const [value, setValue] = useState(target)
-  const from = useRef(target)
-  useEffect(() => {
-    if (reducedMotion()) { from.current = target; setValue(target); return }
-    const start = performance.now()
-    const a = from.current
-    let raf
-    const tick = (now) => {
-      const p = Math.min(1, (now - start) / ms)
-      const val = Math.round(a + (target - a) * (1 - Math.pow(1 - p, 3)))
-      from.current = val
-      setValue(val)
-      if (p < 1) raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [target, ms])
-  return value
-}
-
-// Click ripple on every .btn (pointerdown anywhere; no per-button wiring).
-export function useRipple() {
-  useEffect(() => {
-    const onDown = (e) => {
-      const b = e.target.closest?.('.btn')
-      if (!b || b.disabled || b.classList.contains('is-off') || reducedMotion()) return
-      const r = b.getBoundingClientRect()
-      const size = Math.max(r.width, r.height) * 2
-      const dot = document.createElement('span')
-      dot.className = 'ripple'
-      dot.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX - r.left - size / 2}px;top:${e.clientY - r.top - size / 2}px`
-      b.appendChild(dot)
-      setTimeout(() => dot.remove(), 650)
-    }
-    document.addEventListener('pointerdown', onDown)
-    return () => document.removeEventListener('pointerdown', onDown)
-  }, [])
 }
 
 // ---------- Small components ----------

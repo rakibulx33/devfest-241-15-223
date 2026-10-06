@@ -1,7 +1,7 @@
 {
-  "name": "devfest-241-15-223",
+  "name": "tender-package-builder",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -16,10 +16,11 @@
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
-    "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
     "oxlint": "^1.81.0",
     "vite": "^8.3.0"
-  }
+  },
+  "description": "AI DevFest 2026 - Tender Document Package Builder (frontend-only): check, order and merge tender PDFs into one package with cover page and page-numbered footer.",
+  "author": "Rakibul Hasan (241-15-223)",
+  "license": "MIT"
 }

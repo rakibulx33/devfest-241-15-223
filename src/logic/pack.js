@@ -64,9 +64,10 @@ async function addFooterToDocPage(out, page, font, text) {
  * @param docs    [{ order, title_en, fileName, bytes }] already sorted by order
  * @param generatedDate 'YYYY-MM-DD'
  * @param withIndex add index page after the cover (bonus)
+ * @param seal    { bytes: PNG, pages: [package page numbers], position: 'right'|'left' } (bonus)
  * @returns Uint8Array
  */
-export async function buildPackage({ tender, docs, generatedDate, withIndex = false }) {
+export async function buildPackage({ tender, docs, generatedDate, withIndex = false, seal = null }) {
   const out = await PDFDocument.create()
   const font = await out.embedFont(StandardFonts.Helvetica)
   const bold = await out.embedFont(StandardFonts.HelveticaBold)
@@ -159,6 +160,33 @@ export async function buildPackage({ tender, docs, generatedDate, withIndex = fa
       }
     }
   }
+  // ---- Seal / signature (bonus): PNG stamped bottom-right (or left) just above the footer strip ----
+  if (seal?.bytes && seal.pages?.length) {
+    const img = await out.embedPng(seal.bytes)
+    const w = 110
+    const h = (img.height / img.width) * w
+    for (const n of seal.pages) {
+      if (n < 1 || n > total) continue
+      const page = out.getPage(n - 1)
+      const cb = page.getCropBox()
+      const x = seal.position === 'left' ? cb.x + 36 : cb.x + cb.width - w - 36
+      page.drawImage(img, { x, y: cb.y + STRIP + 16, width: w, height: h })
+    }
+  }
   out.setTitle(`${latin(tender.tender_id)} Package`)
   return out.save()
+}
+
+// Parse a page list like "3, 5-7" into sorted unique numbers within 1..total. null if invalid.
+export function parsePageList(text, total) {
+  const set = new Set()
+  for (const part of String(text).split(',').map((p) => p.trim()).filter(Boolean)) {
+    const m = part.match(/^(\d+)(?:\s*-\s*(\d+))?$/)
+    if (!m) return null
+    const a = +m[1]
+    const b = m[2] ? +m[2] : a
+    if (a < 1 || b < a || b > total) return null
+    for (let i = a; i <= b; i++) set.add(i)
+  }
+  return set.size ? [...set].sort((x, y) => x - y) : null
 }

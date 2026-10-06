@@ -4,7 +4,7 @@ import { t as tr } from './i18n.js'
 import { parseRequirements } from './logic/requirements.js'
 import { allStatuses, BLOCKING, duplicateIds, matchBlocker } from './logic/status.js'
 import { inspectPdf, MAX_FILES, MAX_TOTAL_BYTES } from './logic/files.js'
-import { buildPackage } from './logic/pack.js'
+import { buildPackage, parsePageList } from './logic/pack.js'
 import { suggestMatches } from './logic/automatch.js'
 import { loadProject, saveProject, clearProject } from './logic/saved.js'
 
@@ -57,6 +57,11 @@ export default function App() {
   const [withIndex, setWithIndex] = useState(true)
   const [gen, setGen] = useState({ state: 'idle' })
   const [dragOver, setDragOver] = useState(false)
+  const [seal, setSeal] = useState(null) // { bytes, name } | { error }
+  const [sealMode, setSealMode] = useState('last')
+  const [sealPages, setSealPages] = useState('')
+  const [sealPos, setSealPos] = useState('right')
+  const sealInput = useRef(null)
   const [loaded, setLoaded] = useState(false)
   const [restored, setRestored] = useState(false)
   const jsonInput = useRef(null)
@@ -187,12 +192,37 @@ export default function App() {
   const blocking = rows.filter((r) => BLOCKING.has(r.status))
   const included = rows.filter((r) => matches[r.req.id])
   const totalPages = (withIndex ? 2 : 1) + included.reduce((a, r) => a + (fileById[matches[r.req.id]]?.pages || 0), 0)
+  // Package page numbers for the seal (bonus)
+  const sealUrl = useMemo(() => (seal?.bytes ? URL.createObjectURL(new Blob([seal.bytes], { type: 'image/png' })) : null), [seal])
+  const sealPageList = useMemo(() => {
+    if (!seal?.bytes) return []
+    if (sealMode === 'custom') return parsePageList(sealPages, totalPages)
+    const list = []
+    let p = withIndex ? 2 : 1
+    for (const r of included) {
+      const n = fileById[matches[r.req.id]]?.pages || 0
+      if (sealMode === 'all') for (let i = 1; i <= n; i++) list.push(p + i)
+      else if (n) list.push(p + n)
+      p += n
+    }
+    return list
+  }, [seal, sealMode, sealPages, totalPages, withIndex, included, fileById, matches])
+  const sealInvalid = !!seal?.bytes && sealMode === 'custom' && !sealPageList
+  async function onSealFile(e) {
+    const f = e.target.files?.[0]
+    e.target.value = ''
+    if (!f) return
+    resetGen()
+    const bytes = new Uint8Array(await f.arrayBuffer())
+    const isPng = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47
+    setSeal(isPng ? { bytes, name: f.name } : { error: true, name: f.name })
+  }
   const reqOfFile = (fid) => req?.requirements.find((r) => matches[r.id] === fid)
   const packageName = req ? `${req.tender.tender_id}_Package.pdf` : ''
 
   // ---------- Step 4: generate ----------
   async function generate() {
-    if (!req || blocking.length) return
+    if (!req || blocking.length || sealInvalid) return
     setGen({ state: 'busy' })
     try {
       const docs = []
@@ -203,7 +233,8 @@ export default function App() {
           bnPng: withIndex ? await bnPng(r.req.title_bn) : null,
         })
       }
-      const bytes = await buildPackage({ tender: req.tender, docs, generatedDate: today(), withIndex })
+      const sealOpt = seal?.bytes ? { bytes: seal.bytes, pages: sealPageList, position: sealPos } : null
+      const bytes = await buildPackage({ tender: req.tender, docs, generatedDate: today(), withIndex, seal: sealOpt })
       const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
       setGen({ state: 'done', url, pages: totalPages })
       const a = document.createElement('a')
@@ -446,11 +477,60 @@ export default function App() {
               <input type="checkbox" checked={withIndex} onChange={(e) => { resetGen(); setWithIndex(e.target.checked) }} />
               {t('withIndex')}
             </label>
+            <fieldset className="seal">
+              <legend>{t('sealTitle')}</legend>
+              <p className="help">{t('sealHelp')}</p>
+              <div className="actions">
+                <button className="btn" onClick={() => sealInput.current.click()}>{t('sealChoose')}</button>
+                <input ref={sealInput} type="file" accept="image/png" hidden onChange={onSealFile} />
+                {seal && (
+                  <>
+                    {sealUrl && <img className="seal-prev" src={sealUrl} alt={t('sealPreview')} />}
+                    <span className="muted">{seal.name}</span>
+                    <button className="btn small" onClick={() => { resetGen(); setSeal(null) }}>{t('sealRemove')}</button>
+                  </>
+                )}
+              </div>
+              {seal?.error && <div className="alert error" role="alert">{t('sealBadPng')}</div>}
+              {seal?.bytes && (
+                <div className="seal-opts">
+                  <div role="radiogroup" aria-label={t('sealWhere')}>
+                    <strong>{t('sealWhere')}</strong>
+                    {['last', 'all', 'custom'].map((m) => (
+                      <label key={m} className="check">
+                        <input type="radio" name="sealMode" checked={sealMode === m} onChange={() => { resetGen(); setSealMode(m) }} />
+                        {t('seal_' + m)}
+                      </label>
+                    ))}
+                    {sealMode === 'custom' && (
+                      <input
+                        className="pages-in"
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="3, 5-7"
+                        aria-label={t('sealPagesLabel')}
+                        aria-invalid={sealInvalid}
+                        value={sealPages}
+                        onChange={(e) => { resetGen(); setSealPages(e.target.value) }}
+                      />
+                    )}
+                    {sealInvalid && <div className="alert error" role="alert">{t('sealPagesBad', { total: totalPages })}</div>}
+                  </div>
+                  <label className="pos">
+                    <strong>{t('sealPos')}</strong>
+                    <select value={sealPos} onChange={(e) => { resetGen(); setSealPos(e.target.value) }}>
+                      <option value="right">{t('sealRight')}</option>
+                      <option value="left">{t('sealLeft')}</option>
+                    </select>
+                  </label>
+                </div>
+              )}
+            </fieldset>
             <div className="actions">
               <button
                 className="btn primary big"
                 onClick={generate}
-                disabled={blocking.length > 0 || gen.state === 'busy'}
+                disabled={blocking.length > 0 || sealInvalid || gen.state === 'busy'}
                 aria-describedby={blocking.length ? 'why-blocked' : undefined}
               >
                 {gen.state === 'busy' ? t('generating') : t('generate')}

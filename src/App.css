@@ -154,3 +154,11 @@ h2 { font-size: 17px; margin: 0 0 var(--s1); color: var(--accent); }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 .restored { display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap; margin: 0; }
+.seal { border: 1px solid var(--line); border-radius: 6px; padding: var(--s3) var(--s4); margin: var(--s3) 0; }
+.seal legend { font-weight: 600; padding: 0 var(--s1); }
+.seal .help { margin-bottom: 0; }
+.seal-prev { height: 48px; width: auto; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
+.seal-opts { display: flex; flex-wrap: wrap; gap: var(--s5); }
+.seal-opts .check { margin: var(--s1) 0; }
+.pages-in, .pos select { font: inherit; min-height: 38px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; }
+.pos { display: flex; flex-direction: column; gap: var(--s1); }

@@ -58,6 +58,7 @@ Deployed to GitHub Pages by `.github/workflows/deploy.yml` on every push to `mai
 
 - Index page after the cover showing the start page of each document (checkbox, on by default)
 - Bangla text shown correctly on the index page: each `title_bn` is rendered by the browser's text engine (correct Bangla conjuncts) into a PNG and placed next to the English title
+- Seal or signature: upload a PNG and place it on the last page of each document, every document page, or a custom page list (e.g. `3, 5-7`), bottom-right or bottom-left, above the footer
 - Auto-match: suggests matches from file names; ambiguous cases (e.g. two trade licences) are left for the user
 - Export checklist as CSV (document, file name, pages, expiry date, status) — UTF-8 with BOM so Excel shows Bangla
 - Bad files handled safely: damaged or password-protected PDFs show a clear message

@@ -135,3 +135,21 @@ test('auto-match suggests by file name, skips ambiguous ties', async () => {
   assert.equal(m.R01, undefined) // 2025 vs 2026 tie -> user decides
   assert.equal(m.R06, undefined)
 })
+
+test('page list parsing for seal placement', async () => {
+  const { parsePageList } = await import('../src/logic/pack.js')
+  assert.deepEqual(parsePageList('3, 5-7', 10), [3, 5, 6, 7])
+  assert.deepEqual(parsePageList('2,2,1', 10), [1, 2])
+  assert.equal(parsePageList('0', 10), null)
+  assert.equal(parsePageList('5-3', 10), null)
+  assert.equal(parsePageList('11', 10), null)
+  assert.equal(parsePageList('abc', 10), null)
+  assert.equal(parsePageList('', 10), null)
+})
+
+test('seal image is placed without changing page count', async () => {
+  const png = read('documents/company_logo.png')
+  const docs = [{ title_en: 'TIN', bytes: read('documents/03_tin_certificate.pdf') }]
+  const out = await PDFDocument.load(await buildPackage({ tender: sample.tender, docs, generatedDate: '2026-10-06', seal: { bytes: png, pages: [2], position: 'right' } }))
+  assert.equal(out.getPageCount(), 2)
+})

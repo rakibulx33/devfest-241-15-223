@@ -61,6 +61,7 @@ Deployed to GitHub Pages by `.github/workflows/deploy.yml` on every push to `mai
 - Seal or signature: upload a PNG and place it on the last page of each document, every document page, or a custom page list (e.g. `3, 5-7`), bottom-right or bottom-left, above the footer
 - Auto-match: suggests matches from file names; ambiguous cases (e.g. two trade licences) are left for the user
 - Export checklist as CSV (document, file name, pages, expiry date, status) — UTF-8 with BOM so Excel shows Bangla
+- AI help with the user's own Anthropic API key (Claude Opus 5.5 via `@anthropic-ai/sdk` in the browser): reads each unmatched PDF, suggests which required document it is and fills in the expiry date; when two files claim one document the valid / later-expiring one wins. The key is typed in the page, kept only in memory, never saved or committed. The app works fully without it.
 - Bad files handled safely: damaged or password-protected PDFs show a clear message
 - Save and reopen work: the whole project (requirements, files, matches, dates) is auto-saved in the browser (IndexedDB) and restored after reload; "Start over" clears it
 
@@ -77,6 +78,8 @@ Screenshots: [`screenshots/`](screenshots/).
 
 ## Known problems / limits
 
+- AI help sends the selected PDFs to Anthropic's API (only when the user starts it with their own key); suggestions must be checked by the user.
+
 - The cover page is English only (Section 6.1). Bangla titles on the index are images, so they are not selectable text.
 - Rotated pages are redrawn upright; on those pages links/form fields from the original are not kept.
 - Saved work lives only in this browser (IndexedDB); it is not shared between devices.
@@ -92,4 +95,4 @@ Screenshots: [`screenshots/`](screenshots/).
 
 ## Tech
 
-Vite + React, [pdf-lib](https://pdf-lib.js.org/) (merge, page count, footer), Web Crypto (SHA-256).
+Vite + React, [pdf-lib](https://pdf-lib.js.org/) (merge, page count, footer), Web Crypto (SHA-256), `@anthropic-ai/sdk` + `zod` (optional AI help only).

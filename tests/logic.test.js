@@ -119,3 +119,19 @@ test('rotated pages get footer at visual bottom without crashing', async () => {
   assert.equal(out.getPage(1).getWidth(), 400)
   assert.equal(footerText('T-1', 2, 3), 'T-1 | Page 2 of 3')
 })
+
+test('auto-match suggests by file name, skips ambiguous ties', async () => {
+  const { suggestMatches } = await import('../src/logic/automatch.js')
+  const names = ['01_financial_proposal.pdf', '02_technical_proposal.pdf', '03_tin_certificate.pdf', '04_vat_certificate.pdf', 'bank_solvency.pdf', 'experience_cert (1).pdf', 'experience_cert.pdf', 'scan_0042.pdf', 'trade_license_2025.pdf', 'trade_license_2026.pdf']
+  const files = await Promise.all(names.map(async (name, i) => ({ id: 'f' + i, name, ...(await inspectPdf(read('documents/' + name))) })))
+  const m = suggestMatches(sample.requirements, files, {})
+  const nameOf = (id) => files.find((f) => f.id === id)?.name
+  assert.equal(nameOf(m.R02), '03_tin_certificate.pdf')
+  assert.equal(nameOf(m.R03), '04_vat_certificate.pdf')
+  assert.equal(nameOf(m.R04), 'bank_solvency.pdf')
+  assert.match(nameOf(m.R05), /experience_cert/)
+  assert.equal(nameOf(m.R08), '02_technical_proposal.pdf')
+  assert.equal(nameOf(m.R09), '01_financial_proposal.pdf')
+  assert.equal(m.R01, undefined) // 2025 vs 2026 tie -> user decides
+  assert.equal(m.R06, undefined)
+})

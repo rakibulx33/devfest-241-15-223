@@ -126,13 +126,21 @@ export async function buildPackage({ tender, docs, generatedDate, withIndex = fa
     idx.drawText('Document', { x: L + 24, y: iy, size: 10, font: bold, color: MUTED })
     idx.drawText('Starts on page', { x: W - L - bold.widthOfTextAtSize('Starts on page', 10), y: iy, size: 10, font: bold, color: MUTED })
     iy -= 20
-    docs.forEach((d, i) => {
+    // Bonus: Bangla titles arrive as PNG images rendered by the browser (correct Bangla shaping).
+    const hasBn = docs.some((d) => d.bnPng)
+    const enMax = hasBn ? 200 : W - L * 2 - 100
+    for (const [i, d] of docs.entries()) {
       idx.drawText(`${i + 1}.`, { x: L, y: iy, size: 11, font: bold, color: INK })
-      idx.drawText(fit(font, d.title_en, 11, W - L * 2 - 100), { x: L + 24, y: iy, size: 11, font, color: INK })
+      idx.drawText(fit(font, d.title_en, 11, enMax), { x: L + 24, y: iy, size: 11, font, color: INK })
+      if (d.bnPng) {
+        const img = await out.embedPng(d.bnPng.bytes)
+        const k = Math.min(1, 190 / d.bnPng.w)
+        idx.drawImage(img, { x: L + 240, y: iy - 4 * k, width: d.bnPng.w * k, height: d.bnPng.h * k })
+      }
       const p = String(starts[i])
       idx.drawText(p, { x: W - L - bold.widthOfTextAtSize(p, 11), y: iy, size: 11, font: bold, color: INK })
       iy -= lineH
-    })
+    }
     drawFooter(idx, font, footerText(tender.tender_id, 2, total), 0, 0, W)
   }
 

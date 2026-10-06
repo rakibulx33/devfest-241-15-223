@@ -57,6 +57,7 @@ Deployed to GitHub Pages by `.github/workflows/deploy.yml` on every push to `mai
 ## Bonus features
 
 - Index page after the cover showing the start page of each document (checkbox, on by default)
+- Bangla text shown correctly on the index page: each `title_bn` is rendered by the browser's text engine (correct Bangla conjuncts) into a PNG and placed next to the English title
 - Auto-match: suggests matches from file names; ambiguous cases (e.g. two trade licences) are left for the user
 - Export checklist as CSV (document, file name, pages, expiry date, status) — UTF-8 with BOM so Excel shows Bangla
 - Bad files handled safely: damaged or password-protected PDFs show a clear message
@@ -75,7 +76,7 @@ Screenshots: [`screenshots/`](screenshots/).
 
 ## Known problems / limits
 
-- The cover and index pages are in English only (as Section 6.1 requires); Bangla text is not drawn in the PDF.
+- The cover page is English only (Section 6.1). Bangla titles on the index are images, so they are not selectable text.
 - Rotated pages are redrawn upright; on those pages links/form fields from the original are not kept.
 - Saved work lives only in this browser (IndexedDB); it is not shared between devices.
 - No PDF preview thumbnails.

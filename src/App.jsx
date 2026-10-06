@@ -22,6 +22,26 @@ const store = {
   set: (k, v) => { try { localStorage.setItem(k, v) } catch { /* storage blocked */ } },
 }
 const today = () => new Date().toLocaleDateString('en-CA') // YYYY-MM-DD, local time
+// Render Bangla text to a PNG with the browser's text engine (pdf-lib cannot shape Bangla).
+// Drawn at 4x for print sharpness; w/h are returned in PDF points.
+async function bnPng(text) {
+  try {
+    await document.fonts.load('48px "Noto Sans Bengali"')
+    const c = document.createElement('canvas')
+    const ctx = c.getContext('2d')
+    const font = '48px "Noto Sans Bengali", sans-serif'
+    ctx.font = font
+    c.width = Math.ceil(ctx.measureText(text).width) + 8
+    c.height = 72
+    ctx.font = font
+    ctx.fillStyle = '#1a1f29'
+    ctx.fillText(text, 4, 52)
+    const blob = await new Promise((r) => c.toBlob(r, 'image/png'))
+    return { bytes: new Uint8Array(await blob.arrayBuffer()), w: c.width / 4, h: c.height / 4 }
+  } catch {
+    return null // no Bangla on the index; English stays
+  }
+}
 const kb = (n) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`)
 
 export default function App() {
@@ -175,7 +195,14 @@ export default function App() {
     if (!req || blocking.length) return
     setGen({ state: 'busy' })
     try {
-      const docs = included.map((r) => ({ title_en: r.req.title_en, bytes: fileById[matches[r.req.id]].bytes }))
+      const docs = []
+      for (const r of included) {
+        docs.push({
+          title_en: r.req.title_en,
+          bytes: fileById[matches[r.req.id]].bytes,
+          bnPng: withIndex ? await bnPng(r.req.title_bn) : null,
+        })
+      }
       const bytes = await buildPackage({ tender: req.tender, docs, generatedDate: today(), withIndex })
       const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
       setGen({ state: 'done', url, pages: totalPages })

@@ -29,7 +29,7 @@ Everything runs in the browser: no backend, no upload, no account. Files stay on
 ```bash
 npm install
 npm run dev        # http://localhost:5173  -> click "Load sample tender" and "Load sample documents"
-npm test           # 14 unit tests
+npm test           # 15 unit tests
 npm run build      # production build in dist/
 ```
 
@@ -125,7 +125,7 @@ output/ · screenshots/ · .github/workflows/deploy.yml
 
 ## Testing and quality
 
-- `npm test` — 14 checks: parsing/sorting, validation errors, the status table (incl. same-day expiry), file
+- `npm test` — 15 checks: parsing/sorting, validation errors, the status table (incl. same-day expiry), file
   inspection (non-PDF, duplicates, damaged, encrypted), matching rules, the sample package (page count, order,
   footers), rotated pages, auto-match, seal placement, curly quotes / Bangla cover handling.
 - `npm run lint` — 0 warnings · `npm audit` — 0 vulnerabilities · CI runs tests before every deploy.
@@ -167,8 +167,11 @@ no secrets · sample data only · no hard-coded answers. Full checklist: [docs/R
 
 ## AI tools used
 
-- **Claude Code** (Claude Opus 5.5; Claude Sonnet 5.5 for the last part of the session) — problem analysis, planning,
+- **Claude Code** (Claude Opus 5.5; Claude Sonnet 5.5 for part of the session) — problem analysis, planning,
   code, tests, browser checks and documentation, driven by the prompts quoted in the commit messages.
+- **Codex Astra** — independent code review of the finished app (bug, security and requirement review). Its
+  findings were checked against the code; the confirmed fixes are commit `32343f7`, and the issues not fixed
+  in time are listed under *Known problems*.
 
 ## Most useful prompt
 

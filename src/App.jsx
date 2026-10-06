@@ -273,7 +273,7 @@ export default function App() {
 
   function exportCsv() {
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
-    const head = [t('colOrder'), t('colDoc'), t('colFile'), 'Pages', t('colExpiry'), t('colStatus')]
+    const head = [t('colOrder'), t('colDoc'), t('colFile'), t('csvPages'), t('colExpiry'), t('colStatus')]
     const lines = rows.map(({ req: r, status }) => {
       const f = fileById[matches[r.id]]
       return [r.order, title(r), f?.name || '', f?.pages || '', expiry[r.id] || '', t('st_' + status)]
@@ -322,7 +322,7 @@ export default function App() {
           {reqErrors.length > 0 && (
             <div className="alert error" role="alert">
               <strong>{t('jsonErrorTitle')}</strong>
-              <ul>{reqErrors.map((e, i) => <li key={i}><code>{e}</code></li>)}</ul>
+              <ul>{reqErrors.map((e, i) => <li key={i}>{t('rq_' + e.code, { ...e, field: e.field })}</li>)}</ul>
             </div>
           )}
           {req && (

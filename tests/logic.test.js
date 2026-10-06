@@ -32,8 +32,9 @@ test('invalid requirements are rejected with reasons', () => {
   assert.ok(parseRequirements('{}').errors.length >= 2)
   const bad = { tender: { tender_id: 'X', title: 'T', procuring_entity: 'P', bidder: 'B', submission_deadline: '2026-02-30' }, requirements: [{ id: 'R1' }] }
   const e = parseRequirements(JSON.stringify(bad)).errors
-  assert.ok(e.some((m) => m.includes('submission_deadline')))
-  assert.ok(e.some((m) => m.includes('mandatory')))
+  assert.ok(e.some((m) => m.code === 'bad_deadline'))
+  assert.ok(e.some((m) => m.code === 'not_bool' && m.field.endsWith('mandatory')))
+  assert.equal(parseRequirements('{oops').errors[0].code, 'bad_json')
   assert.equal(isIsoDate('2026-10-20'), true)
   assert.equal(isIsoDate('20-10-2026'), false)
 })

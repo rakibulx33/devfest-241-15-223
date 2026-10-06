@@ -1,108 +1,172 @@
 # Tender Document Package Builder
 
-AI DevFest 2026 — Vibe Coding Contest (Solo)
+**AI DevFest 2026 — Vibe Coding Contest (Solo)** · frontend-only web app that turns a tender's `requirements.json`
+and a set of PDF files into **one checked, correctly ordered PDF package** (cover page, documents in tender order,
+`<tender_id> | Page X of Y` footer on every page), in **English and Bangla**.
 
-- **Name:** Rakibul Hasan
-- **Registration no:** 241-15-223
-- **Live site:** https://rakibulx33.github.io/devfest-241-15-223/
-- **Repository:** https://github.com/rakibulx33/devfest-241-15-223
+| | |
+|---|---|
+| **Name** | Rakibul Hasan |
+| **Registration no.** | 241-15-223 |
+| **Live site (HTTPS)** | https://rakibulx33.github.io/devfest-241-15-223/ |
+| **Repository** | https://github.com/rakibulx33/devfest-241-15-223 |
+| **Stack** | Vite + React (JavaScript), [pdf-lib](https://pdf-lib.js.org/), deployed with GitHub Actions → GitHub Pages |
+| **Licence** | MIT |
 
-A frontend-only web app that helps office staff turn a set of PDF files into one complete,
-checked and correctly ordered tender package PDF. Everything runs in the browser — no file
-is uploaded anywhere.
+Everything runs in the browser: no backend, no upload, no account. Files stay on the user's computer.
 
-## How to run
+## Documentation
+
+| Document | What is in it |
+|---|---|
+| [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | How to use the app, step by step, with the sample pack — **English and Bangla** |
+| [docs/SETUP.md](docs/SETUP.md) | Install, run, test, build, deploy to GitHub Pages, troubleshooting |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Full architecture: modules, data flow, rules engine, PDF builder, storage, security, background processing |
+| [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | Requirement-by-requirement traceability and the contest-rules checklist |
+
+## Quick start
 
 ```bash
 npm install
-npm run dev      # local dev server
-npm run build    # production build into dist/
-npm test         # node --test: status rules, validation, duplicates, PDF package checks
+npm run dev        # http://localhost:5173  -> click "Load sample tender" and "Load sample documents"
+npm test           # 14 unit tests
+npm run build      # production build in dist/
 ```
 
-Deployed to GitHub Pages by `.github/workflows/deploy.yml` on every push to `main`
-(the workflow runs the tests before building).
+Details and troubleshooting: [docs/SETUP.md](docs/SETUP.md).
 
-## How to use
+## How to use (short)
 
-1. **Step 1** — open `requirements.json` (or click *Load sample tender*). Tender details and the
-   required documents are shown, sorted by `order`. Malformed files are rejected with a list of problems.
-2. **Step 2** — choose or drag-drop many files (or *Load sample documents*). Each file shows its name and
-   page count. Non-PDF, damaged and password-protected files are rejected with a clear message.
-   Files with identical content are marked **Duplicate**. Any file can be removed.
-3. **Step 3** — pick a file for each required document (one file per document, one document per file;
-   duplicates cannot be used for two documents). Enter expiry dates where needed. Each row shows its
-   status live: **Missing**, **Expiry date needed**, **Expired**, **Not provided**, **OK**
-   (icon + text + colour).
-4. **Step 4** — choose package options (index page, optional seal). The **Package panel** (right side on desktop, bottom bar on phones) shows a live paper stack with the page count, one coloured segment per document, and the list of problems — click a problem to jump to its row. *Generate package PDF* stays disabled while any blocking status exists; when ready it downloads `<tender_id>_Package.pdf`.
+1. **Tender requirements** — open `requirements.json` (or *Load sample tender*). Tender details and the required
+   documents appear, sorted by `order`. A bad file is rejected with a bilingual list of problems.
+2. **Upload PDF files** — choose or drag-drop many files. Each shows name and page count. Non-PDF, damaged and
+   password-protected files are rejected with a clear message; identical-content files are marked **Duplicate**.
+3. **Match files and check** — pick a file for each document (one file ↔ one document), enter expiry dates where
+   asked. Every document shows one live status: **Missing**, **Expiry date needed**, **Expired**,
+   **Not provided** or **OK** (icon + text + colour).
+4. **Package options → Generate** — choose the index page / seal, then press **Generate package PDF**. The button
+   stays off while any blocking status exists and lists why. The result downloads as `<tender_id>_Package.pdf`.
 
-## Design
+Full guide: [docs/USER_GUIDE.md](docs/USER_GUIDE.md).
 
-Bottle-green and paper palette, Public Sans + Noto Sans Bengali, numbered step rail, status "stamps" (icon + text + colour, never colour alone), sliding EN/বাংলা switch, live package panel with animated page count, mobile bottom bar, 375 px layout, motion layer (button lift / press / sheen / click ripple, staggered list entrance, rail fill and dot pop, "Generated" stamp slam, shake + jump when Generate is pressed while blocked, files slide out on remove, scroll-progress bar and scroll-reveal in latest Chrome), visible keyboard focus, `prefers-reduced-motion` respected.
+## How it works (short)
+
+- `src/logic/*` — pure, unit-tested modules: validate `requirements.json`, inspect files (PDF check by content,
+  SHA-256 for duplicates, page count), derive statuses, suggest matches, build the PDF with pdf-lib, save to IndexedDB.
+- `src/App.jsx` — holds all state; **statuses are derived** from `matches` + `expiry` + deadline on every render,
+  so they update instantly.
+- **PDF building** — cover page → optional index → `copyPages` of each document in requirement order. The footer
+  is drawn in a **28 pt strip added below** every page so it can never cover content; rotated pages are redrawn
+  upright first.
+- Bangla on the PDF (index, non-Latin cover fields) is rendered to PNG by the browser's own text engine (correct
+  conjunct shaping) and embedded.
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for diagrams and the full walk-through.
 
 ## Main features (all done)
 
-- 4.1 Load + validate `requirements.json` (clear English/Bangla error list; a document with only one title falls back to it in the other language), show tender details, requirements sorted by order
-- 4.2 Multi-file upload with page counts; non-PDF rejection (checked by file content, not only name); remove file; 30 files / 50 MB limit
-- 4.3 One-to-one matching, change or undo any time
-- 4.4 Expiry date entry for `has_expiry` documents
-- 4.5 Live status per Section 5 (same-day expiry = OK)
-- 4.6 Duplicate detection by SHA-256 of file content; duplicates cannot be matched to different documents
-- 4.7 Generate disabled with reasons while blocking statuses exist
-- 4.8 Download as `<tender_id>_Package.pdf`
-- 4.9 Full English / Bangla switch (remembered), titles from `title_en` / `title_bn`
-- Package (Section 6): English cover page (tender ID, title, entity, bidder, deadline, generation date,
-  included documents in order) → documents in `order`, all pages in original order, optional documents
-  without a file skipped → footer `<tender_id> | Page X of Y` on every page. The footer is drawn in a
-  new white strip **added below** each page, so it never covers document content. Rotated pages are
-  turned upright first so the footer is always at the visual bottom.
+- **4.1** Load + validate `requirements.json` (clear EN/BN error list; one title is enough, the other language falls back to it), tender details, requirements sorted by `order`
+- **4.2** Multi-file upload with page counts; non-PDF rejection (by content, not only extension); remove any file; 30 files / 50 MB limit
+- **4.3** One-to-one matching, change or undo at any time
+- **4.4** Expiry date entry for `has_expiry` documents
+- **4.5** Live status per Section 5 (same-day expiry = OK)
+- **4.6** Duplicate detection by SHA-256 of content; duplicates cannot be matched to different documents
+- **4.7** Generate disabled with reasons while blocking statuses exist (and pressing it takes you to the first problem)
+- **4.8** Download as `<tender_id>_Package.pdf`
+- **4.9** Whole app in English / Bangla (remembered), names from `title_en` / `title_bn`
+- **Package (Section 6)** English cover page → documents in `order` with all pages in original order (optional
+  documents without a file skipped) → footer `<tender_id> | Page X of Y` on every page, never covering content
 
 ## Bonus features
 
-- Index page after the cover showing the start page of each document (checkbox, on by default)
-- Bangla text shown correctly on the index page: each `title_bn` is rendered by the browser's text engine (correct Bangla conjuncts) into a PNG and placed next to the English title
-- Seal or signature: upload a PNG and place it on the last page of each document, every document page, or a custom page list (e.g. `3, 5-7`), bottom-right or bottom-left, above the footer
-- Auto-match: suggests matches from file names; ambiguous cases (e.g. two trade licences) are left for the user
-- Export checklist as CSV (document, file name, pages, expiry date, status) — UTF-8 with BOM so Excel shows Bangla
-- Bad files handled safely: damaged or password-protected PDFs show a clear message
-- Save and reopen work: the whole project (requirements, files, matches, dates) is auto-saved in the browser (IndexedDB) and restored after reload; "Start over" clears it
+- Index page after the cover with the start page of each document
+- Bangla text shown correctly on the PDF index page and for non-Latin tender text on the cover
+- Seal or signature PNG on chosen pages (last page of each document / every page / custom list such as `3, 5-7`)
+- Auto-match from file names (ambiguous cases are left to the user)
+- Export checklist as CSV (document, file name, pages, expiry date, status)
+- Save and reopen work (auto-saved in the browser, restored on reload)
+- Bad files handled safely: damaged or password-protected PDFs give a clear message, never a crash
+- *AI help with the user's own API key* was built and then removed again on request — the final app has no AI calls
 
 ## Sample pack result
 
-Problems found in the sample pack: `company_logo.png` is not a PDF; `experience_cert.pdf` and
-`experience_cert (1).pdf` are duplicates; `trade_license_2025.pdf` expired on 2025-06-30 (before the
-2026-10-20 deadline) — use `trade_license_2026.pdf` (valid to 2027-06-30); `scan_0042.pdf` is the signed
-declaration; file numbers `01_financial` / `02_technical` are in the opposite order to the tender.
-Optional documents R06 and R07 are not provided.
+Problems the app finds in the organizer sample pack: `company_logo.png` is not a PDF · `experience_cert.pdf` and
+`experience_cert (1).pdf` are duplicates · `trade_license_2025.pdf` expired on 2025-06-30 (before the 2026-10-20
+deadline), so `trade_license_2026.pdf` (valid to 2027-06-30) is used · `scan_0042.pdf` is the signed declaration ·
+`01_financial` / `02_technical` are numbered opposite to the tender order · optional R06 and R07 are not provided.
 
-Output: [`output/T-2026-0417_Package.pdf`](output/T-2026-0417_Package.pdf) — cover + index + 15 document pages = 17 pages.
-Screenshots in [`screenshots/`](screenshots/): `07` document statuses (English), `09` document statuses (Bangla), `05` ready state, `08` after generating, `06` phone layout (Bangla).
+Output: [`output/T-2026-0417_Package.pdf`](output/T-2026-0417_Package.pdf) — cover + index + 15 document pages =
+**17 pages** (16 without the index). Screenshots are in [`screenshots/`](screenshots/): `07` document statuses
+(English), `09` document statuses (Bangla), `05` ready state, `08` after generating, `06` phone layout (Bangla).
+
+## Project structure
+
+```
+index.html · vite.config.js · package.json
+src/
+  main.jsx           entry point
+  App.jsx            state, handlers, page layout
+  ui.jsx             Icon, Step, StatusStamp, LangSwitch, package panel (Dossier)
+  motion.js          reduced-motion check, count-up, click ripple
+  i18n.js            English / Bangla dictionaries + t()
+  App.css            design tokens, layout, components, motion, responsive rules
+  logic/
+    requirements.js  parse + validate requirements.json
+    files.js         PDF check by content, SHA-256, page count, encrypted/damaged detection
+    status.js        statuses, duplicates, matching rules
+    automatch.js     name-based match suggestions
+    pack.js          cover, index, merge, footer strip, seal, Bangla/non-Latin images
+    saved.js         IndexedDB save/restore
+public/sample/       organizer sample pack (requirements.json + documents/)
+tests/logic.test.js  14 node:test checks
+docs/                user guide, setup, architecture, requirements matrix
+output/ · screenshots/ · .github/workflows/deploy.yml
+```
+
+## Testing and quality
+
+- `npm test` — 14 checks: parsing/sorting, validation errors, the status table (incl. same-day expiry), file
+  inspection (non-PDF, duplicates, damaged, encrypted), matching rules, the sample package (page count, order,
+  footers), rotated pages, auto-match, seal placement, curly quotes / Bangla cover handling.
+- `npm run lint` — 0 warnings · `npm audit` — 0 vulnerabilities · CI runs tests before every deploy.
+- Checked by hand in Chrome: full sample flow on the live site in both languages, 375 px mobile width, keyboard
+  focus, reduced-motion, odd PDF page sizes / crops / rotations, Content-Security-Policy.
 
 ## Security and privacy
 
 - Everything runs in the browser; no file or data is sent to any server. Saved work stays in this browser's IndexedDB.
-- A strict Content-Security-Policy meta tag allows only own scripts, Google Fonts (CSS + font files) and `blob:`/`data:` images; no inline scripts, no `eval`, no third-party scripts.
-- Uploaded files are checked by content (`%PDF-` header), never executed or injected into the page; all text is rendered through React (escaped).
-- CSV export neutralises spreadsheet formula injection (cells starting with `=`, `+`, `-`, `@` get a leading quote).
-- No keys, tokens or secrets in the code or history. `npm audit`: 0 known vulnerabilities.
+- Strict Content-Security-Policy meta tag (own scripts only; Google Fonts for fonts/styles; `blob:`/`data:` images),
+  `no-referrer`; no inline scripts, `eval` or `innerHTML`; all text is escaped by React.
+- Files are identified by content (`%PDF-` header) and parsed by pdf-lib in the page; never executed.
+- CSV export neutralises spreadsheet formula injection (`=`, `+`, `-`, `@` prefixes).
+- No keys, tokens or secrets in code or history.
+
+## Contest rules compliance
+
+Frontend only · all code written after T+0 in this repo · bilingual UI with remembered toggle (Noto Sans Bengali) ·
+commits at least every 30 minutes, every message ends with `Prompt: "…"`, no force-push or rewritten history ·
+no secrets · sample data only · no hard-coded answers. Full checklist: [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md).
 
 ## Known problems / limits
 
-- The cover page is English (Section 6.1). If a tender title, entity or bidder contains Bangla, that line is drawn as an image, so it is not selectable text; the same applies to the Bangla titles on the index page.
-- Fonts (Public Sans, Noto Sans Bengali) load from Google Fonts; offline, the app falls back to system fonts and still works.
-- A PDF that opens but has broken page content is not detected; only unreadable, empty or password-protected PDFs are rejected.
-- Rotated pages are redrawn upright; on those pages links/form fields from the original are not kept.
-- Saved work lives only in this browser (IndexedDB); it is not shared between devices.
-- No PDF preview thumbnails.
+- If a tender title, entity or bidder contains Bangla, that cover line is drawn as an image (not selectable text);
+  the same applies to the Bangla titles on the index page. The rest of the cover is English as Section 6.1 requires.
+- Rotated pages are redrawn upright; links and form fields on those pages are not kept.
+- A PDF that opens but has broken page content is not detected — only unreadable, empty or password-protected PDFs are rejected.
+- Fonts (Public Sans, Noto Sans Bengali) load from Google Fonts; offline the app falls back to system fonts.
+- Saved work lives only in the browser that created it; no PDF preview thumbnails.
+- Assumptions made without organizer confirmation (Q&A window): an optional document that is matched but expired
+  still shows **Expired** and blocks; requirements with the same `order` are sorted by `id`; the cover date uses `YYYY-MM-DD`.
 
 ## AI tools used
 
-- Claude Code (Claude Opus 5.5) — analysis of the problem statement and sample pack, planning, code, tests, browser checks.
+- **Claude Code** (Claude Opus 5.5; Claude Sonnet 5.5 for the last part of the session) — problem analysis, planning,
+  code, tests, browser checks and documentation, driven by the prompts quoted in the commit messages.
 
 ## Most useful prompt
 
 > "/home/rax/Desktop/Vibe Coding Contest/AIDevFest-ViveCoding_ProblemStatement.pdf this the contest problem now analyze it and make a build plan and follow the contest rules"
 
-## Tech
+## Licence
 
-Vite + React, [pdf-lib](https://pdf-lib.js.org/) (merge, page count, footer), Web Crypto (SHA-256).
+MIT — see [LICENSE](LICENSE).

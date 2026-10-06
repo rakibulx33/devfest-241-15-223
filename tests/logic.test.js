@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PDFDocument, degrees } from 'pdf-lib'
 import { parseRequirements, isIsoDate } from '../src/logic/requirements.js'
-import { statusOf, BLOCKING, duplicateIds, matchBlocker } from '../src/logic/status.js'
+import { statusOf, BLOCKING, duplicateIds, matchBlocker, allStatuses } from '../src/logic/status.js'
 import { inspectPdf } from '../src/logic/files.js'
 import { buildPackage, footerText } from '../src/logic/pack.js'
 
@@ -189,4 +189,12 @@ test('requirements: one title is enough, numeric-string order accepted', () => {
   assert.equal(res.requirements[0].title_bn, 'English only')
   const none = parseRequirements(JSON.stringify({ tender: t, requirements: [{ ...base, title_bn: '' }] }))
   assert.equal(none.errors[0].code, 'missing')
+})
+
+test('requirement ids like "constructor"/"toString" do not read Object.prototype', () => {
+  const reqs = ['constructor', 'toString', 'hasOwnProperty'].map((id, i) => ({ id, order: i + 1, title_en: id, title_bn: id, mandatory: true, has_expiry: false }))
+  const rows = allStatuses(reqs, {}, {}, DL)
+  assert.deepEqual(rows.map((r) => r.status), ['missing', 'missing', 'missing'])
+  const ok = allStatuses(reqs, { constructor: 'f1' }, {}, DL)
+  assert.equal(ok[0].status, 'ok')
 })

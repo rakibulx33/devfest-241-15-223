@@ -2,6 +2,9 @@
 // plain string comparison is a correct chronological comparison.
 import { isIsoDate } from './requirements.js'
 
+// Own-property read: requirement ids are arbitrary strings, e.g. "constructor" must not hit Object.prototype.
+export const own = (obj, key) => (Object.hasOwn(obj, key) ? obj[key] : undefined)
+
 export const BLOCKING = new Set(['missing', 'expiry_needed', 'expired'])
 
 export function statusOf(req, hasFile, expiry, deadline) {
@@ -14,7 +17,7 @@ export function statusOf(req, hasFile, expiry, deadline) {
 }
 
 export function allStatuses(requirements, matches, expiry, deadline) {
-  return requirements.map((r) => ({ req: r, status: statusOf(r, !!matches[r.id], expiry[r.id], deadline) }))
+  return requirements.map((r) => ({ req: r, status: statusOf(r, !!own(matches, r.id), own(expiry, r.id), deadline) }))
 }
 
 // Ids of valid files whose content hash appears more than once.

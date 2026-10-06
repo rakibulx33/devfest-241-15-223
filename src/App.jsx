@@ -4,7 +4,7 @@ import { BrandMark, Dossier, Icon, LangSwitch, Step, StatusStamp } from './ui.js
 import { reducedMotion, useRipple } from './motion.js'
 import { t as tr } from './i18n.js'
 import { parseRequirements } from './logic/requirements.js'
-import { allStatuses, BLOCKING, duplicateIds, matchBlocker } from './logic/status.js'
+import { allStatuses, BLOCKING, duplicateIds, matchBlocker, own } from './logic/status.js'
 import { inspectPdf, MAX_FILES, MAX_TOTAL_BYTES } from './logic/files.js'
 import { buildPackage, needsImage, parsePageList } from './logic/pack.js'
 import { suggestMatches } from './logic/automatch.js'
@@ -93,7 +93,9 @@ export default function App() {
   }, [loaded, req, files, matches, expiry, withIndex])
   function startOver() {
     clearProject()
-    setReq(null); setReqErrors([]); setFiles([]); setMatches({}); setExpiry({}); setNotice(null); setRestored(false); resetGen()
+    setReq(null); setReqErrors([]); setFiles([]); setMatches({}); setExpiry({}); setNotice(null); setRestored(false)
+    setSeal(null); setSealMode('last'); setSealPages(''); setSealPos('right'); setSealOpen(false); setWithIndex(true)
+    resetGen()
   }
   const pdfInput = useRef(null)
 
@@ -109,7 +111,8 @@ export default function App() {
     document.title = tr(lang, 'appTitle')
   }, [lang])
   const title = (r) => (lang === 'bn' ? r.title_bn : r.title_en)
-  const resetGen = () => setGen({ state: 'idle' })
+  const genToken = useRef(0) // bumped by every edit; a running build whose token is stale is discarded
+  const resetGen = () => { genToken.current++; setGen({ state: 'idle' }) }
 
   // ---------- Step 1: requirements ----------
   function applyRequirements(text) {
@@ -216,8 +219,8 @@ export default function App() {
     [req, matches, expiry],
   )
   const blocking = rows.filter((r) => BLOCKING.has(r.status))
-  const included = rows.filter((r) => matches[r.req.id])
-  const totalPages = (withIndex ? 2 : 1) + included.reduce((a, r) => a + (fileById[matches[r.req.id]]?.pages || 0), 0)
+  const included = rows.filter((r) => own(matches, r.req.id))
+  const totalPages = (withIndex ? 2 : 1) + included.reduce((a, r) => a + (fileById[own(matches, r.req.id)]?.pages || 0), 0)
   // Package page numbers for the seal (bonus)
   const sealUrl = useMemo(() => (seal?.bytes ? URL.createObjectURL(new Blob([seal.bytes], { type: 'image/png' })) : null), [seal])
   const sealPageList = useMemo(() => {
@@ -226,7 +229,7 @@ export default function App() {
     const list = []
     let p = withIndex ? 2 : 1
     for (const r of included) {
-      const n = fileById[matches[r.req.id]]?.pages || 0
+      const n = fileById[own(matches, r.req.id)]?.pages || 0
       if (sealMode === 'all') for (let i = 1; i <= n; i++) list.push(p + i)
       else if (n) list.push(p + n)
       p += n
@@ -243,19 +246,20 @@ export default function App() {
     const isPng = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47
     setSeal(isPng ? { bytes, name: f.name } : { error: true, name: f.name })
   }
-  const reqOfFile = (fid) => req?.requirements.find((r) => matches[r.id] === fid)
+  const reqOfFile = (fid) => req?.requirements.find((r) => own(matches, r.id) === fid)
   const packageName = req ? `${req.tender.tender_id}_Package.pdf` : ''
 
   // ---------- Step 4: generate ----------
   async function generate() {
-    if (!req || blocking.length || sealInvalid) return
+    if (!req || blocking.length || sealInvalid || gen.state === 'busy') return
+    const token = ++genToken.current
     setGen({ state: 'busy' })
     try {
       const docs = []
       for (const r of included) {
         docs.push({
           title_en: r.req.title_en,
-          bytes: fileById[matches[r.req.id]].bytes,
+          bytes: fileById[own(matches, r.req.id)].bytes,
           bnPng: withIndex ? await bnPng(r.req.title_bn) : null,
         })
       }
@@ -265,6 +269,8 @@ export default function App() {
       }
       const sealOpt = seal?.bytes ? { bytes: seal.bytes, pages: sealPageList, position: sealPos } : null
       const bytes = await buildPackage({ tender: req.tender, docs, generatedDate: today(), withIndex, seal: sealOpt, textImages })
+      if (token !== genToken.current) return // inputs changed while building: drop the outdated PDF
+      if (gen.url) URL.revokeObjectURL(gen.url)
       const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }))
       setGen({ state: 'done', url, pages: totalPages })
       const a = document.createElement('a')
@@ -272,7 +278,7 @@ export default function App() {
       a.download = packageName
       a.click()
     } catch (e) {
-      setGen({ state: 'error', msg: e?.message || String(e) })
+      if (token === genToken.current) setGen({ state: 'error', msg: e?.message || String(e) })
     }
   }
 
@@ -285,8 +291,8 @@ export default function App() {
     }
     const head = [t('colOrder'), t('colDoc'), t('colFile'), t('csvPages'), t('colExpiry'), t('colStatus')]
     const lines = rows.map(({ req: r, status }) => {
-      const f = fileById[matches[r.id]]
-      return [r.order, title(r), f?.name || '', f?.pages || '', expiry[r.id] || '', t('st_' + status)]
+      const f = fileById[own(matches, r.id)]
+      return [r.order, title(r), f?.name || '', f?.pages || '', own(expiry, r.id) || '', t('st_' + status)]
     })
     const csv = '﻿' + [head, ...lines].map((l) => l.map(esc).join(',')).join('\r\n')
     const a = document.createElement('a')
@@ -484,7 +490,7 @@ export default function App() {
                             </td>
                             <td data-label={t('colFileExpiry')}>
                               <label className="sr" htmlFor={selId}>{t('colFile')} — {title(r)}</label>
-                              <select id={selId} value={matches[r.id] || ''} onChange={(e) => setMatch(r.id, e.target.value)}>
+                              <select id={selId} value={own(matches, r.id) || ''} onChange={(e) => setMatch(r.id, e.target.value)}>
                                 <option value="">{t('noFileOption')}</option>
                                 {files.filter((f) => !f.error).map((f) => {
                                   const why = matchBlocker(r.id, f.id, matches, files)
@@ -498,13 +504,13 @@ export default function App() {
                                 })}
                               </select>
                               {r.has_expiry && (
-                                matches[r.id] ? (
+                                own(matches, r.id) ? (
                                   <label className="exp-field">
                                     <span>{t('colExpiry')}</span>
                                     <input
                                       type="date"
                                       name={'expiry-' + r.id}
-                                      value={expiry[r.id] || ''}
+                                      value={own(expiry, r.id) || ''}
                                       onChange={(e) => { resetGen(); setExpiry((x) => ({ ...x, [r.id]: e.target.value })) }}
                                     />
                                   </label>
@@ -595,6 +601,11 @@ export default function App() {
               </button>
               {req && blocking.length > 0 && <span className="muted">{t('fixN', { n: blocking.length })}</span>}
             </div>
+            {req && (
+              <button type="button" className="btn ghost small csv-mobile" onClick={exportCsv}>
+                <Icon name="download" size={16} />{t('exportCsv')}
+              </button>
+            )}
             {gen.state === 'done' && (
               <div className="alert ok only-mobile" role="status">
                 <Icon name="check" size={18} className="draw" />

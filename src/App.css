@@ -322,6 +322,7 @@ h2 { font-size: 18px; line-height: 1.3; margin: 4px 0 0; font-weight: 700; lette
 
 .foot { text-align: center; color: var(--muted); font-size: 13px; padding: 24px 16px 32px; }
 .only-mobile { display: none; }
+.csv-mobile { display: none; }
 
 /* ---------- Keyframes ---------- */
 @keyframes enter { from { opacity: 0; transform: translateY(6px); } }
@@ -344,6 +345,7 @@ h2 { font-size: 18px; line-height: 1.3; margin: 4px 0 0; font-weight: 700; lette
     display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'strip btn' 'info btn'; gap: 2px 14px; align-items: center;
   }
   .stack, .d-csv, .d-hint, .d-done { display: none; }
+  .csv-mobile { display: inline-flex; margin-top: 12px; }
   .strip { grid-area: strip; margin: 0; }
   .seg { pointer-events: none; height: 20px; }
   .seg::before { top: 6px; }

@@ -102,4 +102,4 @@ Duplicates are marked in the uploaded-files list (blue tag) ✅.
 - [x] `output/T-2026-0417_Package.pdf` and `screenshots/`
 - [x] Tests green (`npm test`), build green (`npm run build`), lint clean (`npm run lint`)
 - [x] Secret scan clean, `npm audit` 0 vulnerabilities
-- [x] Final commit hash + live URL copied into the submission form
+- [ ] Final commit hash + live URL copied into the submission form (done by the participant on the portal — not verifiable from the repo)

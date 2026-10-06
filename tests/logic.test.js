@@ -155,22 +155,6 @@ test('seal image is placed without changing page count', async () => {
   assert.equal(out.getPageCount(), 2)
 })
 
-test('AI answers: valid newer licence beats expired one, dates applied, no double use', async () => {
-  const { applyAiAnswers } = await import('../src/logic/automatch.js')
-  const files = [{ id: 'a', hash: '1' }, { id: 'b', hash: '2' }, { id: 'c', hash: '3' }, { id: 'd', hash: '3' }]
-  const answers = [
-    { fileId: 'a', requirement_id: 'R01', expiry_date: '2025-06-30', confidence: 'high' },
-    { fileId: 'b', requirement_id: 'R01', expiry_date: '2027-06-30', confidence: 'high' },
-    { fileId: 'c', requirement_id: 'R05', expiry_date: null, confidence: 'high' },
-    { fileId: 'd', requirement_id: 'R05', expiry_date: null, confidence: 'high' },
-  ]
-  const { matches, expiry } = applyAiAnswers(sample.requirements, files, {}, {}, answers, DL, isIsoDate)
-  assert.equal(matches.R01, 'b')
-  assert.equal(expiry.R01, '2027-06-30')
-  assert.equal(matches.R05, 'c')
-  assert.equal(Object.values(matches).filter((v) => v === 'd').length, 0)
-})
-
 test('password-protected (encrypted) PDF is rejected, not crashed', async () => {
   const src = Buffer.from(read('documents/03_tin_certificate.pdf'))
   const at = src.lastIndexOf('trailer')

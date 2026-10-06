@@ -46,28 +46,3 @@ export function suggestMatches(requirements, files, matches) {
   }
   return result
 }
-
-// Bonus (AI help): turn per-file AI answers into matches + expiry dates.
-// answers: [{ fileId, requirement_id, expiry_date }]. Only fills requirements that are still empty.
-// When several files claim one requirement, prefer a valid (not expired) one, then the later expiry,
-// then higher confidence, so e.g. a new trade licence wins over an expired one. Deterministic.
-export function applyAiAnswers(requirements, files, matches, expiry, answers, deadline, isIsoDate) {
-  const m = { ...matches }
-  const x = { ...expiry }
-  const rank = { high: 3, medium: 2, low: 1 }
-  for (const r of requirements) {
-    if (m[r.id]) continue
-    const cands = answers
-      .filter((a) => a.requirement_id === r.id && !matchBlocker(r.id, a.fileId, m, files))
-      .map((a) => ({ ...a, date: r.has_expiry && isIsoDate(a.expiry_date) ? a.expiry_date : '' }))
-      .sort((a, b) =>
-        (b.date >= deadline) - (a.date >= deadline) ||
-        b.date.localeCompare(a.date) ||
-        (rank[b.confidence] || 0) - (rank[a.confidence] || 0) ||
-        a.fileId.localeCompare(b.fileId))
-    if (!cands.length) continue
-    m[r.id] = cands[0].fileId
-    if (cands[0].date) x[r.id] = cands[0].date
-  }
-  return { matches: m, expiry: x }
-}

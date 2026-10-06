@@ -5,9 +5,7 @@ import { parseRequirements } from './logic/requirements.js'
 import { allStatuses, BLOCKING, duplicateIds, matchBlocker } from './logic/status.js'
 import { inspectPdf, MAX_FILES, MAX_TOTAL_BYTES } from './logic/files.js'
 import { buildPackage, parsePageList } from './logic/pack.js'
-import { suggestMatches, applyAiAnswers } from './logic/automatch.js'
-import { identifyDocument } from './logic/ai.js'
-import { isIsoDate } from './logic/requirements.js'
+import { suggestMatches } from './logic/automatch.js'
 import { loadProject, saveProject, clearProject } from './logic/saved.js'
 
 const SAMPLE_DOCS = [
@@ -64,8 +62,6 @@ export default function App() {
   const [sealPages, setSealPages] = useState('')
   const [sealPos, setSealPos] = useState('right')
   const sealInput = useRef(null)
-  const [apiKey, setApiKey] = useState('') // never stored
-  const [ai, setAi] = useState({ state: 'idle' })
   const [loaded, setLoaded] = useState(false)
   const [restored, setRestored] = useState(false)
   const jsonInput = useRef(null)
@@ -179,27 +175,6 @@ export default function App() {
     const n = Object.keys(next).length - Object.keys(matches).length
     setMatches(next)
     setNotice(n > 0 ? { key: 'autoMatchDone', n } : { key: 'autoMatchNone' })
-  }
-  async function runAi() {
-    const used = new Set(Object.values(matches))
-    const todo = files.filter((f) => !f.error && !used.has(f.id))
-    if (!todo.length) return setAi({ state: 'done', msgs: [{ key: 'aiNoFiles' }] })
-    resetGen()
-    const answers = []
-    const msgs = []
-    for (let i = 0; i < todo.length; i++) {
-      setAi({ state: 'busy', done: i, total: todo.length })
-      const res = await identifyDocument(apiKey.trim(), req.requirements, todo[i])
-      if (res.error) {
-        msgs.push({ key: 'ai_' + res.error, name: todo[i].name })
-        if (res.error === 'bad_key') break
-      } else answers.push({ fileId: todo[i].id, ...res })
-    }
-    const next = applyAiAnswers(req.requirements, files, matches, expiry, answers, req.tender.submission_deadline, isIsoDate)
-    const n = Object.keys(next.matches).length - Object.keys(matches).length
-    setMatches(next.matches)
-    setExpiry(next.expiry)
-    setAi({ state: 'done', msgs: [{ key: 'aiDone', total: todo.length, n }, ...msgs] })
   }
   function clearMatches() {
     resetGen()
@@ -404,30 +379,6 @@ export default function App() {
                 <button className="btn ghost" onClick={clearMatches} disabled={!Object.keys(matches).length}>{t('clearMatches')}</button>
                 {notice && <span className="muted" role="status">{t(notice.key, notice)}</span>}
               </div>
-              <details className="ai">
-                <summary>{t('aiTitle')}</summary>
-                <p className="help">{t('aiHelp')}</p>
-                <p className="muted">{t('aiPrivacy')}</p>
-                <div className="actions">
-                  <label className="sr" htmlFor="apikey">{t('aiKey')}</label>
-                  <input
-                    id="apikey"
-                    className="key-in"
-                    type="password"
-                    autoComplete="off"
-                    placeholder={t('aiKey')}
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                  />
-                  <button className="btn" onClick={runAi} disabled={!apiKey.trim() || ai.state === 'busy'}>{t('aiRun')}</button>
-                </div>
-                {ai.state === 'busy' && <p className="muted" role="status">{t('aiRunning', ai)}</p>}
-                {ai.state === 'done' && (
-                  <ul className="ai-msgs" role="status">
-                    {ai.msgs.map((m, i) => <li key={i}>{t(m.key, m)}</li>)}
-                  </ul>
-                )}
-              </details>
               <table className="reqs">
                 <thead>
                   <tr>

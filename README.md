@@ -152,6 +152,13 @@ no secrets · sample data only · no hard-coded answers. Full checklist: [docs/R
 - If a tender title, entity or bidder contains Bangla, that cover line is drawn as an image (not selectable text);
   the same applies to the Bangla titles on the index page. The rest of the cover is English as Section 6.1 requires.
 - Rotated pages are redrawn upright; links and form fields on those pages are not kept.
+- Very long tender title / procuring entity / bidder names are shortened with "..." on the cover, and a tender ID
+  with non-Latin (e.g. Bangla) characters prints as "?" on the cover and in footers.
+- Two uploads started at the same moment can together exceed the 30-file limit, and **Start over** pressed while an
+  upload is still being read can let those files appear afterwards.
+- The seal/signature image and its settings are not saved for reload (they are cleared by **Start over**). A failed
+  browser save is silent.
+- A requirement whose `id` is exactly `__proto__` cannot be matched (ids such as `constructor` / `toString` work).
 - A PDF that opens but has broken page content is not detected — only unreadable, empty or password-protected PDFs are rejected.
 - Fonts (Public Sans, Noto Sans Bengali) load from Google Fonts; offline the app falls back to system fonts.
 - Saved work lives only in the browser that created it; no PDF preview thumbnails.

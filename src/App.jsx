@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
-import { BrandMark, Dossier, Icon, LangSwitch, Step, StatusStamp, reducedMotion } from './ui.jsx'
+import { BrandMark, Dossier, Icon, LangSwitch, Step, StatusStamp, reducedMotion, useRipple } from './ui.jsx'
 import { t as tr } from './i18n.js'
 import { parseRequirements } from './logic/requirements.js'
 import { allStatuses, BLOCKING, duplicateIds, matchBlocker } from './logic/status.js'
@@ -64,6 +64,10 @@ export default function App() {
   const sealInput = useRef(null)
   const [loaded, setLoaded] = useState(false)
   const [flash, setFlash] = useState(null) // row briefly highlighted after a jump
+  const [leaving, setLeaving] = useState(null) // file row fading out before removal
+  const [swap, setSwap] = useState(false) // brief crossfade when the language changes
+  const [shaking, setShaking] = useState(false)
+  useRipple()
   const [sealOpen, setSealOpen] = useState(false)
   const [restored, setRestored] = useState(false)
   const jsonInput = useRef(null)
@@ -93,8 +97,11 @@ export default function App() {
   const pdfInput = useRef(null)
 
   const changeLang = (next) => {
+    if (next === lang) return
     store.set('lang', next)
     setLang(next)
+    setSwap(true)
+    setTimeout(() => setSwap(false), 350)
   }
   const title = (r) => (lang === 'bn' ? r.title_bn : r.title_en)
   const resetGen = () => setGen({ state: 'idle' })
@@ -152,10 +159,14 @@ export default function App() {
   }
   function removeFile(id) {
     resetGen()
-    setFiles((prev) => prev.filter((f) => f.id !== id))
+    setLeaving(id)
     const freed = Object.keys(matches).filter((r) => matches[r] === id)
-    setMatches((m) => Object.fromEntries(Object.entries(m).filter(([, v]) => v !== id)))
-    setExpiry((x) => Object.fromEntries(Object.entries(x).filter(([k]) => !freed.includes(k))))
+    setTimeout(() => {
+      setLeaving(null)
+      setFiles((prev) => prev.filter((f) => f.id !== id))
+      setMatches((m) => Object.fromEntries(Object.entries(m).filter(([, v]) => v !== id)))
+      setExpiry((x) => Object.fromEntries(Object.entries(x).filter(([k]) => !freed.includes(k))))
+    }, reducedMotion() ? 0 : 220)
   }
 
   // ---------- Step 3: matching ----------
@@ -281,8 +292,18 @@ export default function App() {
     setTimeout(() => row.querySelector('select, input')?.focus({ preventScroll: true }), calm ? 0 : 350)
   }
 
+  // Pressing Generate while blocked: shake the package and take the user to the first problem.
+  function tryGenerate() {
+    if (canGenerate) return generate()
+    if (req && blocking.length) {
+      setShaking(true)
+      setTimeout(() => setShaking(false), 500)
+      jumpTo(blocking[0].req.id)
+    } else if (sealInvalid) setSealOpen(true)
+  }
+
   return (
-    <div className="app" lang={lang}>
+    <div className={'app' + (swap ? ' swap' : '')} lang={lang}>
       <header className="topbar">
         <div className="topbar-in">
           <div className="brand">
@@ -346,7 +367,7 @@ export default function App() {
           {/* Step 2: upload */}
           <Step n={2} id="s2" done={steps[2]} title={t('step2')} help={t('step2Help', { maxFiles: MAX_FILES, maxMb: MAX_MB })} t={t}>
             <div
-              className={'drop' + (dragOver ? ' over' : '')}
+              className={'drop' + (dragOver ? ' over' : '') + (files.length === 0 ? ' idle' : '')}
               onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
               onDragLeave={() => setDragOver(false)}
               onDrop={(e) => { e.preventDefault(); setDragOver(false); addFiles([...e.dataTransfer.files]) }}
@@ -367,11 +388,11 @@ export default function App() {
               <p className="empty">{t('noFiles')}</p>
             ) : (
               <ul className="files">
-                {files.map((f) => {
+                {files.map((f, i) => {
                   const used = reqOfFile(f.id)
                   const twins = files.filter((o) => o.id !== f.id && !o.error && o.hash === f.hash)
                   return (
-                    <li key={f.id} className={'file ' + (f.error ? 'bad' : dups.has(f.id) ? 'dup' : '')}>
+                    <li key={f.id} style={{ '--i': Math.min(i, 10) }} className={'file ' + (f.error ? 'bad' : dups.has(f.id) ? 'dup' : '') + (leaving === f.id ? ' leaving' : '')}>
                       <span className="pdf-ico" aria-hidden="true">
                         <Icon name={f.error ? 'x' : 'file'} size={22} />
                         {!f.error && <b>{f.pages}</b>}
@@ -426,10 +447,10 @@ export default function App() {
                       </tr>
                     </thead>
                     <tbody>
-                      {rows.map(({ req: r, status }) => {
+                      {rows.map(({ req: r, status }, i) => {
                         const selId = 'sel-' + r.id
                         return (
-                          <tr key={r.id} id={'row-' + r.id} className={'row-' + status + (flash === r.id ? ' flash' : '')}>
+                          <tr key={r.id} id={'row-' + r.id} style={{ '--i': Math.min(i, 12) }} className={'row-' + status + (flash === r.id ? ' flash' : '')}>
                             <td data-label={t('colOrder')} className="ord"><span>{r.order}</span></td>
                             <td data-label={t('colDoc')}>
                               <div className="dname">{title(r)}</div>
@@ -544,7 +565,7 @@ export default function App() {
               </div>
             </details>
             <div className="inline-gen only-desktop">
-              <button className="btn primary big" onClick={generate} disabled={!canGenerate}>
+              <button className={'btn primary big' + (canGenerate ? '' : ' is-off') + (gen.state === 'busy' ? ' busy' : '')} onClick={tryGenerate} aria-disabled={!canGenerate}>
                 {gen.state === 'busy' ? <><span className="spin" aria-hidden="true" />{t('generating')}</> : <><Icon name="download" size={18} />{t('generate')}</>}
               </button>
               {req && blocking.length > 0 && <span className="muted">{t('fixN', { n: blocking.length })}</span>}
@@ -567,7 +588,8 @@ export default function App() {
           titleOf={title}
           gen={gen}
           canGenerate={canGenerate}
-          onGenerate={generate}
+          shaking={shaking}
+          onGenerate={tryGenerate}
           onJump={jumpTo}
           onCsv={exportCsv}
           packageName={packageName}

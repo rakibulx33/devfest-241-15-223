@@ -38,7 +38,7 @@ Deployed to GitHub Pages by `.github/workflows/deploy.yml` on every push to `mai
 
 ## Design
 
-Bottle-green and paper palette, Public Sans + Noto Sans Bengali, numbered step rail, status "stamps" (icon + text + colour, never colour alone), sliding EN/বাংলা switch, live package panel with animated page count, mobile bottom bar, 375 px layout, visible keyboard focus, `prefers-reduced-motion` respected.
+Bottle-green and paper palette, Public Sans + Noto Sans Bengali, numbered step rail, status "stamps" (icon + text + colour, never colour alone), sliding EN/বাংলা switch, live package panel with animated page count, mobile bottom bar, 375 px layout, motion layer (button lift / press / sheen / click ripple, staggered list entrance, rail fill and dot pop, "Generated" stamp slam, shake + jump when Generate is pressed while blocked, files slide out on remove, scroll-progress bar and scroll-reveal in latest Chrome), visible keyboard focus, `prefers-reduced-motion` respected.
 
 ## Main features (all done)
 

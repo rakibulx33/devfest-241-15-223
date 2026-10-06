@@ -66,6 +66,25 @@ export function useCountUp(target, ms = 450) {
   return value
 }
 
+// Click ripple on every .btn (pointerdown anywhere; no per-button wiring).
+export function useRipple() {
+  useEffect(() => {
+    const onDown = (e) => {
+      const b = e.target.closest?.('.btn')
+      if (!b || b.disabled || b.classList.contains('is-off') || reducedMotion()) return
+      const r = b.getBoundingClientRect()
+      const size = Math.max(r.width, r.height) * 2
+      const dot = document.createElement('span')
+      dot.className = 'ripple'
+      dot.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX - r.left - size / 2}px;top:${e.clientY - r.top - size / 2}px`
+      b.appendChild(dot)
+      setTimeout(() => dot.remove(), 650)
+    }
+    document.addEventListener('pointerdown', onDown)
+    return () => document.removeEventListener('pointerdown', onDown)
+  }, [])
+}
+
 // ---------- Small components ----------
 // Render with key={status} so the stamp animation replays whenever the status changes.
 export function StatusStamp({ status, label }) {
@@ -104,11 +123,12 @@ export function Step({ n, done, id, title, help, last, t, children }) {
 }
 
 // One segment per required document, in tender order. Doubles as a mini-map: click to jump to the row.
+const order = (req, rows) => rows.findIndex((r) => r.req.id === req.id)
 function StatusStrip({ rows, t, titleOf, onJump }) {
   return (
     <ol className="strip" aria-label={t('stripLabel')}>
       {rows.map(({ req, status }) => (
-        <li key={req.id}>
+        <li key={req.id + status} style={{ '--i': Math.min(order(req, rows), 20) }}>
           <button type="button" className={'seg seg-' + status} onClick={() => onJump(req.id)}
             title={`${req.order}. ${titleOf(req)} — ${t('st_' + status)}`}
             aria-label={`${req.order}. ${titleOf(req)}: ${t('st_' + status)}`} />
@@ -119,13 +139,13 @@ function StatusStrip({ rows, t, titleOf, onJump }) {
 }
 
 // The "dossier": a live paper stack of the package-to-be, with status map and the Generate action.
-export function Dossier({ t, req, rows, blocking, pagesNow, titleOf, gen, canGenerate, onGenerate, onJump, onCsv, packageName }) {
+export function Dossier({ t, req, rows, blocking, pagesNow, titleOf, gen, canGenerate, shaking, onGenerate, onJump, onCsv, packageName }) {
   const pages = useCountUp(pagesNow)
   const state = !req ? 'empty' : blocking.length ? 'todo' : 'ready'
   const busy = gen.state === 'busy'
   return (
     <aside className="dossier" aria-label={t('dossierTitle')} data-state={state}>
-      <div className="stack">
+      <div className={'stack' + (shaking ? ' shake' : '')}>
         <span className="sheet back2" aria-hidden="true" />
         <span className="sheet back1" aria-hidden="true" />
         <div className="sheet front">
@@ -134,13 +154,16 @@ export function Dossier({ t, req, rows, blocking, pagesNow, titleOf, gen, canGen
               <div className="f-id">{req.tender.tender_id}</div>
               <div className="f-title">{req.tender.title}</div>
               <div className="f-pages" aria-live="polite">
-                <span className="num">{pages}</span>
+                <span className="num" key={pagesNow}>{pages}</span>
                 <span>{t('pagesWord')}</span>
               </div>
-              <span className={'corner ' + (state === 'ready' ? 'c-ready' : 'c-fix')}>
+              <span key={state + blocking.length} className={'corner ' + (state === 'ready' ? 'c-ready' : 'c-fix')}>
                 <Icon name={state === 'ready' ? 'check' : 'alert'} size={14} />
                 {state === 'ready' ? t('tagReady') : t('tagFix', { n: blocking.length })}
               </span>
+              {gen.state === 'done' && (
+                <span className="big-stamp" aria-hidden="true"><Icon name="check" size={20} />{t('stampDone')}</span>
+              )}
             </>
           ) : (
             <div className="f-empty">{t('dossierEmpty')}</div>
@@ -174,7 +197,9 @@ export function Dossier({ t, req, rows, blocking, pagesNow, titleOf, gen, canGen
         </ul>
       )}
 
-      <button type="button" className="btn primary big block gen" onClick={onGenerate} disabled={!canGenerate}
+      <button type="button"
+        className={'btn primary big block gen' + (canGenerate ? '' : ' is-off') + (busy ? ' busy' : '') + (canGenerate && gen.state === 'idle' ? ' pulse' : '')}
+        onClick={onGenerate} aria-disabled={!canGenerate}
         aria-describedby={blocking.length ? 'why-blocked' : undefined}>
         {busy ? <><span className="spin" aria-hidden="true" />{t('generating')}</> : <><Icon name="download" size={18} />{t('generate')}</>}
       </button>

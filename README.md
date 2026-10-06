@@ -34,8 +34,11 @@ Deployed to GitHub Pages by `.github/workflows/deploy.yml` on every push to `mai
    duplicates cannot be used for two documents). Enter expiry dates where needed. Each row shows its
    status live: **Missing**, **Expiry date needed**, **Expired**, **Not provided**, **OK**
    (icon + text + colour).
-4. **Step 4** — *Generate package PDF* stays disabled while any blocking status exists, and the
-   reasons are listed. When ready it downloads `<tender_id>_Package.pdf`.
+4. **Step 4** — choose package options (index page, optional seal). The **Package panel** (right side on desktop, bottom bar on phones) shows a live paper stack with the page count, one coloured segment per document, and the list of problems — click a problem to jump to its row. *Generate package PDF* stays disabled while any blocking status exists; when ready it downloads `<tender_id>_Package.pdf`.
+
+## Design
+
+Bottle-green and paper palette, Public Sans + Noto Sans Bengali, numbered step rail, status "stamps" (icon + text + colour, never colour alone), sliding EN/বাংলা switch, live package panel with animated page count, mobile bottom bar, 375 px layout, visible keyboard focus, `prefers-reduced-motion` respected.
 
 ## Main features (all done)
 

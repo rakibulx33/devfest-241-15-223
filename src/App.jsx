@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import './App.css'
+import { BrandMark, Dossier, Icon, LangSwitch, Step, StatusStamp, reducedMotion } from './ui.jsx'
 import { t as tr } from './i18n.js'
 import { parseRequirements } from './logic/requirements.js'
 import { allStatuses, BLOCKING, duplicateIds, matchBlocker } from './logic/status.js'
@@ -13,7 +14,6 @@ const SAMPLE_DOCS = [
   'bank_solvency.pdf', 'company_logo.png', 'experience_cert (1).pdf', 'experience_cert.pdf', 'scan_0042.pdf',
   'trade_license_2025.pdf', 'trade_license_2026.pdf',
 ]
-const ICON = { missing: '✕', expiry_needed: '!', expired: '⌛', not_provided: '–', ok: '✓' }
 const MAX_MB = MAX_TOTAL_BYTES / 1024 / 1024
 let nextId = 1
 
@@ -63,6 +63,8 @@ export default function App() {
   const [sealPos, setSealPos] = useState('right')
   const sealInput = useRef(null)
   const [loaded, setLoaded] = useState(false)
+  const [flash, setFlash] = useState(null) // row briefly highlighted after a jump
+  const [sealOpen, setSealOpen] = useState(false)
   const [restored, setRestored] = useState(false)
   const jsonInput = useRef(null)
 
@@ -90,8 +92,7 @@ export default function App() {
   }
   const pdfInput = useRef(null)
 
-  const toggleLang = () => {
-    const next = lang === 'en' ? 'bn' : 'en'
+  const changeLang = (next) => {
     store.set('lang', next)
     setLang(next)
   }
@@ -261,292 +262,317 @@ export default function App() {
   }
 
   const pagesLabel = (n) => (n === 1 ? t('page1') : t('pages', { n }))
+  const canGenerate = !!req && blocking.length === 0 && !sealInvalid && gen.state !== 'busy'
+  const steps = {
+    1: !!req,
+    2: files.some((f) => !f.error),
+    3: !!req && blocking.length === 0 && included.length > 0,
+    4: gen.state === 'done',
+  }
+
+  // Scroll to a document row, highlight it and focus its first control (used by the package panel).
+  function jumpTo(id) {
+    const row = document.getElementById('row-' + id)
+    if (!row) return
+    const calm = reducedMotion()
+    row.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'center' })
+    setFlash(id)
+    setTimeout(() => setFlash((f) => (f === id ? null : f)), 1600)
+    setTimeout(() => row.querySelector('select, input')?.focus({ preventScroll: true }), calm ? 0 : 350)
+  }
 
   return (
     <div className="app" lang={lang}>
       <header className="topbar">
-        <div className="brand">
-          <span className="mark" aria-hidden="true">TP</span>
-          <div>
-            <h1>{t('appTitle')}</h1>
-            <p className="sub">{t('appSub')}</p>
+        <div className="topbar-in">
+          <div className="brand">
+            <BrandMark />
+            <div>
+              <h1>{t('appTitle')}</h1>
+              <p className="sub">{t('appSub')}</p>
+            </div>
           </div>
+          <LangSwitch lang={lang} onChange={changeLang} label={t('langLabel')} />
         </div>
-        <button className="btn ghost lang" onClick={toggleLang} aria-label={t('switchLangLabel')}>
-          {t('switchLang')}
-        </button>
       </header>
 
-      <main>
-        {restored && (
-          <div className="alert ok restored" role="status">
-            {t('restored')}{' '}
-            <button className="btn small" onClick={startOver}>{t('startOver')}</button>
-          </div>
-        )}
-        {/* Step 1 */}
-        <section className="card" aria-labelledby="s1">
-          <h2 id="s1">{t('step1')}</h2>
-          <p className="help">{t('step1Help')}</p>
-          <div className="actions">
-            <button className="btn primary" onClick={() => jsonInput.current.click()}>{t('openJson')}</button>
-            <button className="btn" onClick={loadSample}>{t('loadSample')}</button>
-            {(req || files.length > 0) && <button className="btn ghost" onClick={startOver}>{t('startOver')}</button>}
-            <input ref={jsonInput} type="file" accept=".json,application/json" hidden onChange={onJsonFile} />
-          </div>
-          {reqErrors.length > 0 && (
-            <div className="alert error" role="alert">
-              <strong>{t('jsonErrorTitle')}</strong>
-              <ul>{reqErrors.map((e, i) => <li key={i}>{t('rq_' + e.code, { ...e, field: e.field })}</li>)}</ul>
+      <div className="workspace">
+        <main className="flow">
+          {restored && (
+            <div className="alert ok restored" role="status">
+              <Icon name="check" size={18} />
+              <span>{t('restored')}</span>
+              <button className="btn small" onClick={startOver}>{t('startOver')}</button>
             </div>
           )}
-          {req && (
-            <dl className="tender">
-              {[['tenderId', 'tender_id'], ['tenderTitle', 'title'], ['entity', 'procuring_entity'], ['bidder', 'bidder'], ['deadline', 'submission_deadline']].map(([k, f]) => (
-                <div key={k}>
-                  <dt>{t(k)}</dt>
-                  <dd>{req.tender[f]}</dd>
+
+          {/* Step 1: tender requirements */}
+          <Step n={1} id="s1" done={steps[1]} title={t('step1')} help={!req ? t('step1Help') : null} t={t}>
+            <input ref={jsonInput} type="file" accept=".json,application/json" hidden onChange={onJsonFile} />
+            {reqErrors.length > 0 && (
+              <div className="alert error" role="alert">
+                <Icon name="x" size={18} />
+                <div>
+                  <strong>{t('jsonErrorTitle')}</strong>
+                  <ul>{reqErrors.map((e, i) => <li key={i}>{t('rq_' + e.code, { ...e, field: e.field })}</li>)}</ul>
                 </div>
-              ))}
-            </dl>
-          )}
-        </section>
-
-        {/* Step 2 */}
-        <section className="card" aria-labelledby="s2">
-          <h2 id="s2">{t('step2')}</h2>
-          <p className="help">{t('step2Help', { maxFiles: MAX_FILES, maxMb: MAX_MB })}</p>
-          <div
-            className={'drop' + (dragOver ? ' over' : '')}
-            onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={(e) => { e.preventDefault(); setDragOver(false); addFiles([...e.dataTransfer.files]) }}
-          >
-            <button className="btn primary" onClick={() => pdfInput.current.click()}>{t('chooseFiles')}</button>
-            <span className="muted">{t('dropHere')}</span>
-            <button className="btn" onClick={loadSampleDocs}>{t('loadSampleDocs')}</button>
-            <input ref={pdfInput} type="file" multiple hidden onChange={(e) => { addFiles([...e.target.files]); e.target.value = '' }} />
-          </div>
-          {reading && <p className="muted" role="status">{t('reading')}</p>}
-          {files.length === 0 ? (
-            <p className="empty">{t('noFiles')}</p>
-          ) : (
-            <ul className="files">
-              {files.map((f) => {
-                const used = reqOfFile(f.id)
-                const twins = files.filter((o) => o.id !== f.id && !o.error && o.hash === f.hash)
-                return (
-                  <li key={f.id} className={f.error ? 'bad' : dups.has(f.id) ? 'dup' : ''}>
-                    <div className="fmain">
-                      <span className="fname">{f.name}</span>
-                      <span className="fmeta">
-                        {f.error ? kb(f.size) : `${pagesLabel(f.pages)} · ${kb(f.size)}`}
-                      </span>
-                    </div>
-                    <div className="ftags">
-                      {f.error && <span className="tag t-bad">✕ {t('err_' + f.error, { maxFiles: MAX_FILES, maxMb: MAX_MB })}</span>}
-                      {!f.error && dups.has(f.id) && (
-                        <span className="tag t-dup" title={t('dupOf', { names: twins.map((o) => o.name).join(', ') })}>
-                          ⧉ {t('dupBadge')} — {t('dupOf', { names: twins.map((o) => o.name).join(', ') })}
-                        </span>
-                      )}
-                      {!f.error && (
-                        <span className={'tag ' + (used ? 't-ok' : 't-idle')}>
-                          {used ? t('matchedTo', { doc: title(used) }) : t('notMatched')}
-                        </span>
-                      )}
-                    </div>
-                    <button className="btn small" onClick={() => removeFile(f.id)} aria-label={t('removeLabel', { name: f.name })}>
-                      {t('remove')}
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </section>
-
-        {/* Step 3 */}
-        <section className="card" aria-labelledby="s3">
-          <h2 id="s3">{t('step3')}</h2>
-          {!req ? (
-            <p className="empty">{t('loadFirst')}</p>
-          ) : (
-            <>
-              <p className="help">{t('step3Help')}</p>
-              <div className="actions">
-                <button className="btn" onClick={autoMatch} disabled={!files.some((f) => !f.error)}>{t('autoMatch')}</button>
-                <button className="btn ghost" onClick={clearMatches} disabled={!Object.keys(matches).length}>{t('clearMatches')}</button>
-                {notice && <span className="muted" role="status">{t(notice.key, notice)}</span>}
               </div>
-              <table className="reqs">
-                <thead>
-                  <tr>
-                    <th scope="col">{t('colOrder')}</th>
-                    <th scope="col">{t('colDoc')}</th>
-                    <th scope="col">{t('colFile')}</th>
-                    <th scope="col">{t('colExpiry')}</th>
-                    <th scope="col">{t('colStatus')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map(({ req: r, status }) => {
-                    const selId = 'sel-' + r.id
-                    return (
-                      <tr key={r.id} className={'row-' + status}>
-                        <td data-label={t('colOrder')} className="ord">{r.order}</td>
-                        <td data-label={t('colDoc')}>
-                          <div className="dname">{title(r)}</div>
-                          <div className="dtags">
-                            <span className={'chip ' + (r.mandatory ? 'c-req' : 'c-opt')}>{r.mandatory ? t('mandatory') : t('optional')}</span>
-                            {r.has_expiry && <span className="chip c-exp">{t('hasExpiry')}</span>}
-                          </div>
-                        </td>
-                        <td data-label={t('colFile')}>
-                          <label className="sr" htmlFor={selId}>{t('colFile')} — {title(r)}</label>
-                          <select id={selId} value={matches[r.id] || ''} onChange={(e) => setMatch(r.id, e.target.value)}>
-                            <option value="">{t('noFileOption')}</option>
-                            {files.filter((f) => !f.error).map((f) => {
-                              const why = matchBlocker(r.id, f.id, matches, files)
-                              const other = why === 'used' ? reqOfFile(f.id) : null
-                              const suffix = why === 'used' ? ' ' + t('optUsed', { doc: title(other) }) : why === 'duplicate' ? ' ' + t('optDup') : ''
-                              return (
-                                <option key={f.id} value={f.id} disabled={!!why}>
-                                  {f.name} ({pagesLabel(f.pages)}){suffix}
-                                </option>
-                              )
-                            })}
-                          </select>
-                        </td>
-                        <td data-label={t('colExpiry')}>
-                          {!r.has_expiry ? (
-                            <span className="muted">{t('notNeeded')}</span>
-                          ) : !matches[r.id] ? (
-                            <span className="muted">{t('pickFileFirst')}</span>
-                          ) : (
-                            <input
-                              type="date"
-                              aria-label={t('expiryLabel', { doc: title(r) })}
-                              value={expiry[r.id] || ''}
-                              onChange={(e) => { resetGen(); setExpiry((x) => ({ ...x, [r.id]: e.target.value })) }}
-                            />
-                          )}
-                        </td>
-                        <td data-label={t('colStatus')}>
-                          <span className={'status s-' + status}>
-                            <span aria-hidden="true">{ICON[status]}</span> {t('st_' + status)}
-                          </span>
-                          <div className="hint">{t('hint_' + status, { deadline: req.tender.submission_deadline })}</div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </>
-          )}
-        </section>
-
-        {/* Step 4 */}
-        {req && (
-          <section className="card" aria-labelledby="s4">
-            <h2 id="s4">{t('step4')}</h2>
-            <p className="summary">
-              {t('summary', {
-                ok: rows.filter((r) => r.status === 'ok').length,
-                blocked: blocking.length,
-                skipped: rows.filter((r) => r.status === 'not_provided').length,
-              })}
-            </p>
-            {blocking.length > 0 ? (
-              <div className="alert warn" id="why-blocked">
-                <strong>{t('blockedTitle')}</strong>
-                <ul>
-                  {blocking.map(({ req: r, status }) => (
-                    <li key={r.id}>
-                      <span className={'status s-' + status}><span aria-hidden="true">{ICON[status]}</span> {t('st_' + status)}</span>{' '}
-                      {r.order}. {title(r)}
-                    </li>
-                  ))}
-                </ul>
+            )}
+            {!req ? (
+              <div className="actions">
+                <button className="btn primary" onClick={() => jsonInput.current.click()}><Icon name="upload" size={18} />{t('openJson')}</button>
+                <button className="btn" onClick={loadSample}>{t('loadSample')}</button>
+                {files.length > 0 && <button className="btn ghost" onClick={startOver}><Icon name="reset" size={16} />{t('startOver')}</button>}
               </div>
             ) : (
-              <div className="alert ok">{t('readyTitle', { pages: totalPages })}</div>
+              <div className="tender-band">
+                <div className="tb-head">
+                  <span className="tb-id">{req.tender.tender_id}</span>
+                  <span className="tb-deadline"><Icon name="calendar" size={16} />{t('deadline')}: <b>{req.tender.submission_deadline}</b></span>
+                </div>
+                <p className="tb-title">{req.tender.title}</p>
+                <dl className="tb-meta">
+                  <div><dt>{t('entity')}</dt><dd>{req.tender.procuring_entity}</dd></div>
+                  <div><dt>{t('bidder')}</dt><dd>{req.tender.bidder}</dd></div>
+                </dl>
+                <div className="actions">
+                  <button className="btn small" onClick={() => jsonInput.current.click()}>{t('openAnother')}</button>
+                  <button className="btn ghost small" onClick={startOver}><Icon name="reset" size={15} />{t('startOver')}</button>
+                </div>
+              </div>
             )}
-            <label className="check">
-              <input type="checkbox" checked={withIndex} onChange={(e) => { resetGen(); setWithIndex(e.target.checked) }} />
-              {t('withIndex')}
+          </Step>
+
+          {/* Step 2: upload */}
+          <Step n={2} id="s2" done={steps[2]} title={t('step2')} help={t('step2Help', { maxFiles: MAX_FILES, maxMb: MAX_MB })} t={t}>
+            <div
+              className={'drop' + (dragOver ? ' over' : '')}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => { e.preventDefault(); setDragOver(false); addFiles([...e.dataTransfer.files]) }}
+            >
+              <Icon name="upload" size={30} className="drop-ico" />
+              <div className="drop-text">
+                <strong>{t('dropTitle')}</strong>
+                <span>{t('dropSub')}</span>
+              </div>
+              <div className="drop-actions">
+                <button className="btn primary" onClick={() => pdfInput.current.click()}>{t('chooseFiles')}</button>
+                <button className="btn" onClick={loadSampleDocs}>{t('loadSampleDocs')}</button>
+              </div>
+              <input ref={pdfInput} type="file" multiple hidden onChange={(e) => { addFiles([...e.target.files]); e.target.value = '' }} />
+            </div>
+            {reading && <p className="muted reading" role="status"><span className="spin dark" aria-hidden="true" />{t('reading')}</p>}
+            {files.length === 0 ? (
+              <p className="empty">{t('noFiles')}</p>
+            ) : (
+              <ul className="files">
+                {files.map((f) => {
+                  const used = reqOfFile(f.id)
+                  const twins = files.filter((o) => o.id !== f.id && !o.error && o.hash === f.hash)
+                  return (
+                    <li key={f.id} className={'file ' + (f.error ? 'bad' : dups.has(f.id) ? 'dup' : '')}>
+                      <span className="pdf-ico" aria-hidden="true">
+                        <Icon name={f.error ? 'x' : 'file'} size={22} />
+                        {!f.error && <b>{f.pages}</b>}
+                      </span>
+                      <div className="fbody">
+                        <div className="fname">{f.name}</div>
+                        <div className="fmeta">{f.error ? kb(f.size) : `${pagesLabel(f.pages)} · ${kb(f.size)}`}</div>
+                        <div className="ftags">
+                          {f.error && <span className="tag t-bad"><Icon name="x" size={13} />{t('err_' + f.error, { maxFiles: MAX_FILES, maxMb: MAX_MB })}</span>}
+                          {!f.error && dups.has(f.id) && (
+                            <span className="tag t-dup"><Icon name="copy" size={13} />{t('dupBadge')} — {t('dupOf', { names: twins.map((o) => o.name).join(', ') })}</span>
+                          )}
+                          {!f.error && (used
+                            ? <span className="tag t-ok"><Icon name="check" size={13} />{t('matchedTo', { doc: title(used) })}</span>
+                            : <span className="tag t-idle">{t('notMatched')}</span>)}
+                        </div>
+                      </div>
+                      <button className="icon-btn" onClick={() => removeFile(f.id)} aria-label={t('removeLabel', { name: f.name })} title={t('remove')}>
+                        <Icon name="trash" size={18} />
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </Step>
+
+          {/* Step 3: match + check */}
+          <Step n={3} id="s3" done={steps[3]} title={t('step3')} help={req ? t('step3Help') : null} t={t}>
+            {!req ? (
+              <div className="empty-state">
+                <Icon name="file" size={28} />
+                <p>{t('loadFirst')}</p>
+                <button className="btn" onClick={() => jsonInput.current.click()}>{t('openJson')}</button>
+              </div>
+            ) : (
+              <>
+                <div className="toolbar">
+                  <button className="btn" onClick={autoMatch} disabled={!files.some((f) => !f.error)}>{t('autoMatch')}</button>
+                  <button className="btn ghost" onClick={clearMatches} disabled={!Object.keys(matches).length}>{t('clearMatches')}</button>
+                  {notice && <span className="notice" role="status"><Icon name="check" size={15} />{t(notice.key, notice)}</span>}
+                </div>
+                <div className="ledger">
+                  <table className="reqs">
+                    <caption className="sr">{t('tableCaption')}</caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">{t('colOrder')}</th>
+                        <th scope="col">{t('colDoc')}</th>
+                        <th scope="col">{t('colFileExpiry')}</th>
+                        <th scope="col">{t('colStatus')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map(({ req: r, status }) => {
+                        const selId = 'sel-' + r.id
+                        return (
+                          <tr key={r.id} id={'row-' + r.id} className={'row-' + status + (flash === r.id ? ' flash' : '')}>
+                            <td data-label={t('colOrder')} className="ord"><span>{r.order}</span></td>
+                            <td data-label={t('colDoc')}>
+                              <div className="dname">{title(r)}</div>
+                              <div className="dtags">
+                                <span className={'chip ' + (r.mandatory ? 'c-req' : 'c-opt')}>{r.mandatory ? t('mandatory') : t('optional')}</span>
+                                {r.has_expiry && <span className="chip c-exp"><Icon name="calendar" size={12} />{t('hasExpiry')}</span>}
+                              </div>
+                            </td>
+                            <td data-label={t('colFileExpiry')}>
+                              <label className="sr" htmlFor={selId}>{t('colFile')} — {title(r)}</label>
+                              <select id={selId} value={matches[r.id] || ''} onChange={(e) => setMatch(r.id, e.target.value)}>
+                                <option value="">{t('noFileOption')}</option>
+                                {files.filter((f) => !f.error).map((f) => {
+                                  const why = matchBlocker(r.id, f.id, matches, files)
+                                  const other = why === 'used' ? reqOfFile(f.id) : null
+                                  const suffix = why === 'used' ? ' ' + t('optUsed', { doc: title(other) }) : why === 'duplicate' ? ' ' + t('optDup') : ''
+                                  return (
+                                    <option key={f.id} value={f.id} disabled={!!why}>
+                                      {f.name} ({pagesLabel(f.pages)}){suffix}
+                                    </option>
+                                  )
+                                })}
+                              </select>
+                              {r.has_expiry && (
+                                matches[r.id] ? (
+                                  <label className="exp-field">
+                                    <span>{t('colExpiry')}</span>
+                                    <input
+                                      type="date"
+                                      value={expiry[r.id] || ''}
+                                      onChange={(e) => { resetGen(); setExpiry((x) => ({ ...x, [r.id]: e.target.value })) }}
+                                    />
+                                  </label>
+                                ) : (
+                                  <div className="muted exp-wait">{t('pickFileFirst')}</div>
+                                )
+                              )}
+                            </td>
+                            <td data-label={t('colStatus')}>
+                              <StatusStamp key={status} status={status} label={t('st_' + status)} />
+                              <div className="hint">{t('hint_' + status, { deadline: req.tender.submission_deadline })}</div>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </Step>
+
+          {/* Step 4: options */}
+          <Step n={4} id="s4" done={steps[4]} title={t('step4')} help={t('step4Help')} last t={t}>
+            <label className="switch">
+              <input type="checkbox" role="switch" checked={withIndex} onChange={(e) => { resetGen(); setWithIndex(e.target.checked) }} />
+              <span className="track" aria-hidden="true"><span className="thumb" /></span>
+              <span>{t('withIndex')}</span>
             </label>
-            <fieldset className="seal">
-              <legend>{t('sealTitle')}</legend>
-              <p className="help">{t('sealHelp')}</p>
-              <div className="actions">
-                <button className="btn" onClick={() => sealInput.current.click()}>{t('sealChoose')}</button>
-                <input ref={sealInput} type="file" accept="image/png" hidden onChange={onSealFile} />
-                {seal && (
-                  <>
-                    {sealUrl && <img className="seal-prev" src={sealUrl} alt={t('sealPreview')} />}
-                    <span className="muted">{seal.name}</span>
-                    <button className="btn small" onClick={() => { resetGen(); setSeal(null) }}>{t('sealRemove')}</button>
-                  </>
+            <details className="opt" open={sealOpen} onToggle={(e) => setSealOpen(e.currentTarget.open)}>
+              <summary>
+                <span>{t('sealTitle')}</span>
+                <Icon name="chevron" size={16} className="caret" />
+              </summary>
+              <div className="opt-body">
+                <p className="help">{t('sealHelp')}</p>
+                <div className="actions">
+                  <button className="btn" onClick={() => sealInput.current.click()}>{t('sealChoose')}</button>
+                  <input ref={sealInput} type="file" accept="image/png" hidden onChange={onSealFile} />
+                  {seal && (
+                    <>
+                      {sealUrl && <img className="seal-prev" src={sealUrl} alt={t('sealPreview')} />}
+                      <span className="muted">{seal.name}</span>
+                      <button className="btn small" onClick={() => { resetGen(); setSeal(null) }}>{t('sealRemove')}</button>
+                    </>
+                  )}
+                </div>
+                {seal?.error && <div className="alert error" role="alert"><Icon name="x" size={18} /><span>{t('sealBadPng')}</span></div>}
+                {seal?.bytes && (
+                  <div className="seal-opts">
+                    <div role="radiogroup" aria-label={t('sealWhere')}>
+                      <strong>{t('sealWhere')}</strong>
+                      {['last', 'all', 'custom'].map((m) => (
+                        <label key={m} className="check">
+                          <input type="radio" name="sealMode" checked={sealMode === m} onChange={() => { resetGen(); setSealMode(m) }} />
+                          {t('seal_' + m)}
+                        </label>
+                      ))}
+                      {sealMode === 'custom' && (
+                        <input
+                          className="pages-in"
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="3, 5-7"
+                          aria-label={t('sealPagesLabel')}
+                          aria-invalid={sealInvalid}
+                          value={sealPages}
+                          onChange={(e) => { resetGen(); setSealPages(e.target.value) }}
+                        />
+                      )}
+                      {sealInvalid && <div className="alert error" role="alert"><Icon name="x" size={18} /><span>{t('sealPagesBad', { total: totalPages })}</span></div>}
+                    </div>
+                    <label className="pos">
+                      <strong>{t('sealPos')}</strong>
+                      <select value={sealPos} onChange={(e) => { resetGen(); setSealPos(e.target.value) }}>
+                        <option value="right">{t('sealRight')}</option>
+                        <option value="left">{t('sealLeft')}</option>
+                      </select>
+                    </label>
+                  </div>
                 )}
               </div>
-              {seal?.error && <div className="alert error" role="alert">{t('sealBadPng')}</div>}
-              {seal?.bytes && (
-                <div className="seal-opts">
-                  <div role="radiogroup" aria-label={t('sealWhere')}>
-                    <strong>{t('sealWhere')}</strong>
-                    {['last', 'all', 'custom'].map((m) => (
-                      <label key={m} className="check">
-                        <input type="radio" name="sealMode" checked={sealMode === m} onChange={() => { resetGen(); setSealMode(m) }} />
-                        {t('seal_' + m)}
-                      </label>
-                    ))}
-                    {sealMode === 'custom' && (
-                      <input
-                        className="pages-in"
-                        type="text"
-                        inputMode="numeric"
-                        placeholder="3, 5-7"
-                        aria-label={t('sealPagesLabel')}
-                        aria-invalid={sealInvalid}
-                        value={sealPages}
-                        onChange={(e) => { resetGen(); setSealPages(e.target.value) }}
-                      />
-                    )}
-                    {sealInvalid && <div className="alert error" role="alert">{t('sealPagesBad', { total: totalPages })}</div>}
-                  </div>
-                  <label className="pos">
-                    <strong>{t('sealPos')}</strong>
-                    <select value={sealPos} onChange={(e) => { resetGen(); setSealPos(e.target.value) }}>
-                      <option value="right">{t('sealRight')}</option>
-                      <option value="left">{t('sealLeft')}</option>
-                    </select>
-                  </label>
-                </div>
-              )}
-            </fieldset>
-            <div className="actions">
-              <button
-                className="btn primary big"
-                onClick={generate}
-                disabled={blocking.length > 0 || sealInvalid || gen.state === 'busy'}
-                aria-describedby={blocking.length ? 'why-blocked' : undefined}
-              >
-                {gen.state === 'busy' ? t('generating') : t('generate')}
+            </details>
+            <div className="inline-gen only-desktop">
+              <button className="btn primary big" onClick={generate} disabled={!canGenerate}>
+                {gen.state === 'busy' ? <><span className="spin" aria-hidden="true" />{t('generating')}</> : <><Icon name="download" size={18} />{t('generate')}</>}
               </button>
-              <button className="btn" onClick={exportCsv}>{t('exportCsv')}</button>
+              {req && blocking.length > 0 && <span className="muted">{t('fixN', { n: blocking.length })}</span>}
             </div>
             {gen.state === 'done' && (
-              <div className="alert ok" role="status">
-                {t('generated', { pages: gen.pages })}{' '}
-                <a href={gen.url} download={packageName}>{t('download', { file: packageName })}</a>
+              <div className="alert ok only-mobile" role="status">
+                <Icon name="check" size={18} className="draw" />
+                <span>{t('generated', { pages: gen.pages })} <a href={gen.url} download={packageName}>{t('download', { file: packageName })}</a></span>
               </div>
             )}
-            {gen.state === 'error' && <div className="alert error" role="alert">{t('genError', { msg: gen.msg })}</div>}
-          </section>
-        )}
-      </main>
+          </Step>
+        </main>
+
+        <Dossier
+          t={t}
+          req={req}
+          rows={rows}
+          blocking={blocking}
+          pagesNow={req ? totalPages : 0}
+          titleOf={title}
+          gen={gen}
+          canGenerate={canGenerate}
+          onGenerate={generate}
+          onJump={jumpTo}
+          onCsv={exportCsv}
+          packageName={packageName}
+        />
+      </div>
       <footer className="foot">{t('footerNote')}</footer>
     </div>
   )
